@@ -11,17 +11,17 @@ Categories:
 - GENERAL: Basic greetings, general conversation, or meta-questions about what the Omni-Assistant can do.
 
 You MUST output ONLY a valid JSON object in this exact format, with no additional text, explanation, or markdown formatting:
-{"intent": "CATEGORY", "reasoning": "short explanation"}
+{"intent": "CATEGORY", "processed_query": "The actual search query or task description stripped of intent keywords", "reasoning": "short explanation"}
 
 Examples:
 User: "What is the price of Nvidia?"
-Output: {"intent": "ANALYST", "reasoning": "User is asking about stock price which is financial market data."}
+Output: {"intent": "ANALYST", "processed_query": "Nvidia stock price", "reasoning": "User is asking about stock price which is financial market data."}
 
 User: "Remember that my dog's name is Max."
-Output: {"intent": "ARCHIVIST", "reasoning": "User wants to save a personal fact for later retrieval."}
+Output: {"intent": "ARCHIVIST", "processed_query": "dog's name is Max", "reasoning": "User wants to save a personal fact for later retrieval."}
 
 User: "Schedule a meeting for tomorrow."
-Output: {"intent": "ORGANIZER", "reasoning": "User wants to schedule a calendar event."}
+Output: {"intent": "ORGANIZER", "processed_query": "Schedule a meeting for tomorrow", "reasoning": "User wants to schedule a calendar event."}
 """
 
 

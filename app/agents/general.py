@@ -15,12 +15,13 @@ class GeneralAgent:
     def __init__(self):
         self.llm = GeminiClient()
 
-    def handle_query(self, user_input: str) -> str:
+    def handle_query(self, user_input: str, processed_query: str = None) -> str:
         """
         Handle personal greetings and capability explanations.
         """
+        effective_query = processed_query if processed_query else user_input
         response = self.llm.generate_response(
-            prompt=user_input,
+            prompt=effective_query,
             system_instruction=GENERAL_SYSTEM_PROMPT
         )
         return response

@@ -7,21 +7,26 @@ class ArchivistAgent:
         self.db_client = SupabaseClient()
         self.llm = GeminiClient()
 
-    def handle_query(self, user_input: str) -> str:
+    def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
         # Action A: Determine Intent
-        intent_prompt = (
-            f"Analyze this user input: '{user_input}'. "
-            "Does the user want to save/remember something (STORE) or find/recall something (RETRIEVE)? "
-            "Respond with only 'STORE' or 'RETRIEVE'."
-        )
-        intent_response = self.llm.generate_response(prompt=intent_prompt)
-        intent = intent_response.strip().upper()
+        if pre_intent and pre_intent != "UNKNOWN":
+            intent = pre_intent
+        else:
+            intent_prompt = (
+                f"Analyze this user input: '{user_input}'. "
+                "Does the user want to save/remember something (STORE) or find/recall something (RETRIEVE)? "
+                "Respond with only 'STORE' or 'RETRIEVE'."
+            )
+            intent_response = self.llm.generate_response(prompt=intent_prompt)
+            intent = intent_response.strip().upper()
+
+        effective_query = processed_query if processed_query else user_input
 
         # Action B: Execution
         if "STORE" in intent:
             extract_prompt = (
                 f"Extract a category (e.g., 'preference', 'note', 'fact') and the content from this message: "
-                f"'{user_input}'. Format as JSON with exactly two keys: 'category' and 'content'."
+                f"'{effective_query}'. Format as JSON with exactly two keys: 'category' and 'content'."
             )
             extract_response = self.llm.generate_response(
                 prompt=extract_prompt, 
@@ -45,7 +50,7 @@ class ArchivistAgent:
             
         elif "RETRIEVE" in intent:
             keyword_prompt = (
-                f"Extract a search_keyword from this message: '{user_input}'. "
+                f"Extract a search_keyword from this message: '{effective_query}'. "
                 "Format as JSON with key 'search_keyword'."
             )
             keyword_response = self.llm.generate_response(
@@ -67,7 +72,7 @@ class ArchivistAgent:
             synth_prompt = (
                 f"You are the Archivist of the Omni-Agent knowledge base.\n"
                 f"Your mission: Provide a natural, insightful answer based ONLY on the User Query and the Knowledge Records provided below.\n\n"
-                f"USER QUERY: {user_input}\n"
+                f"USER QUERY: {effective_query}\n"
                 f"KNOWLEDGE RECORDS:\n{json.dumps(records, default=str)}\n\n"
                 "RULES:\n"
                 "1. If the user asks 'What do you have in my knowledge base?', 'What do you remember?', or similar, you MUST list and summarize ALL relevant records.\n"

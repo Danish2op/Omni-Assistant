@@ -35,6 +35,10 @@ general_agent = GeneralAgent()
 class ChatRequest(BaseModel):
     message: str
 
+class TaskUpdateRequest(BaseModel):
+    task_id: str
+    status: str
+
 
 @app.get("/health")
 def health_check():
@@ -48,16 +52,25 @@ def test_db():
     except Exception as e:
         return {"status": "Database Connection Failed", "error": str(e)}
 
+@app.patch("/tasks/update")
+def update_task_status(request: TaskUpdateRequest):
+    try:
+        db_client.update_data("tasks", {"id": request.task_id}, {"status": request.status})
+        return {"status": "Success", "message": f"Task {request.task_id} updated to {request.status}"}
+    except Exception as e:
+        return {"status": "Error", "error": str(e)}
+
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
         # Step 1: Route the request
         result = router_agent.route_request(request.message)
         intent = result.get("intent", "UNKNOWN")
+        processed_query = result.get("processed_query", request.message)
 
         # Step 2: Dispatch to the appropriate sub-agent
         if intent == "ANALYST":
-            answer = analyst_agent.handle_query(request.message)
+            answer = analyst_agent.handle_query(request.message, processed_query=processed_query)
             return {
                 "status": "Completed",
                 "intent": intent,
@@ -65,7 +78,7 @@ def chat(request: ChatRequest):
                 "response": answer
             }
         elif intent == "ARCHIVIST":
-            answer = archivist_agent.handle_query(request.message)
+            answer = archivist_agent.handle_query(request.message, pre_intent=intent, processed_query=processed_query)
             return {
                 "status": "Completed",
                 "intent": intent,
@@ -73,7 +86,7 @@ def chat(request: ChatRequest):
                 "response": answer
             }
         elif intent == "ORGANIZER":
-            answer = organizer_agent.handle_query(request.message)
+            answer = organizer_agent.handle_query(request.message, pre_intent=intent, processed_query=processed_query)
             return {
                 "status": "Completed",
                 "intent": intent,
@@ -81,7 +94,7 @@ def chat(request: ChatRequest):
                 "response": answer
             }
         elif intent == "GENERAL":
-            answer = general_agent.handle_query(request.message)
+            answer = general_agent.handle_query(request.message, processed_query=processed_query)
             return {
                 "status": "Completed",
                 "intent": intent,

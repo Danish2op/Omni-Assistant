@@ -11,6 +11,8 @@ Focus on:
 2. Key Trends — What patterns or trends emerge from the data?
 3. Bottom Line — A 2-3 sentence summary with actionable insight.
 
+New Requirement: You MUST include the original source URLs for every key point mentioned. Format them as clickable Markdown links at the end of each section (e.g., [Source: Reuters](URL)).
+
 Format your response as a clean, readable briefing. Do NOT return raw JSON or data dumps.
 If the news data is empty or irrelevant, say so honestly and provide general market context instead."""
 
@@ -20,18 +22,20 @@ class AnalystAgent:
         self.news_tool = NewsTool()
         self.llm = GeminiClient()
 
-    def handle_query(self, user_input: str) -> str:
+    def handle_query(self, user_input: str, processed_query: str = None) -> str:
         """
         End-to-end pipeline: Fetch news → Synthesize with Gemini → Return briefing.
 
         Args:
             user_input: The user's financial/market question.
+            processed_query: Pre-processed keywords from the Router.
 
         Returns:
             A professional synthesized briefing string.
         """
         # Action A: Fetch news using keywords from user input
-        raw_news = self.news_tool.fetch_latest_news(query=None, limit=15)
+        effective_query = processed_query if processed_query else user_input
+        raw_news = self.news_tool.fetch_latest_news(query=effective_query, limit=15)
 
         # Format raw news into a readable string for the LLM
         if raw_news:
@@ -39,7 +43,8 @@ class AnalystAgent:
                 f"Source: {item['source']}\n"
                 f"Title: {item['title']}\n"
                 f"Summary: {item['summary']}\n"
-                f"Date: {item['date']}"
+                f"Date: {item['date']}\n"
+                f"URL: {item['link']}"
                 for item in raw_news
             ])
         else:

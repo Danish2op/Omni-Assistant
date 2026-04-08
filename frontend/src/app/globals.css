@@ -1,39 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050505;
-  --foreground: #E0E0E0;
-  --accent: #00F5FF;
-  --accent-muted: rgba(0, 245, 255, 0.4);
-  --carbon: #0A0A0A;
-  --slate: #151515;
-  --silicon-border: rgba(255, 255, 255, 0.05);
-  --silicon-highlight: rgba(0, 245, 255, 0.1);
-  --glass: rgba(5, 5, 5, 0.8);
+  --background: #020202;
+  --foreground: #fafafa;
+  --surface: #0a0a0a;
+  --surface-alt: #111111;
+  --accent: #00e5ff;
+  --accent-muted: rgba(0, 229, 255, 0.2);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-muted: rgba(255, 255, 255, 0.04);
   
-  /* Neural Tokens */
-  --neural-pulse: rgba(0, 245, 255, 0.1);
+  /* System Tokens */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
 }
 
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
-  --color-carbon: var(--carbon);
-  --color-slate: var(--slate);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-border: var(--border);
   --font-syne: var(--font-syne);
-  --font-outfit: var(--font-outfit);
+  --font-inter: var(--font-inter);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-outfit), sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
   overflow-x: hidden;
-  position: relative;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Grain Overlay */
+/* Base Grain Background */
 body::before {
   content: "";
   position: fixed;
@@ -42,62 +45,42 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  opacity: 0.03;
+  opacity: 0.02;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 100;
 }
 
-/* Neural Background Mesh */
-.neural-mesh {
+/* Architectural Grid Layer */
+.grid-bg {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 50% -20%, #003344 0%, transparent 60%),
-    radial-gradient(circle at 100% 100%, #110022 0%, transparent 50%),
-    radial-gradient(circle at 0% 50%, #001122 0%, transparent 40%);
+  inset: 0;
+  background-image: 
+    linear-gradient(var(--border-muted) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-muted) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+  pointer-events: none;
   z-index: -1;
 }
 
-/* Silicon Components */
-.silicon-panel {
-  background: var(--glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--silicon-border);
-  box-shadow: 0 4px 32px 0 rgba(0, 0, 0, 0.8);
-  position: relative;
-  overflow: hidden;
-}
-
-.silicon-panel::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--silicon-highlight), transparent);
+/* Panels & Containers */
+.glass-panel {
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 4px; /* Sharper, more architectural */
 }
 
 .monolith-header {
   font-family: var(--font-syne);
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   text-transform: uppercase;
 }
 
-.neural-line {
-  height: 1px;
-  background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
-  opacity: 0.3;
-}
-
-/* Custom Scrollbar (Stealth) */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
 
 ::-webkit-scrollbar-track {
@@ -105,30 +88,92 @@ body::before {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--slate);
-  border-radius: 0;
+  background: var(--border);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
 }
 
-/* Micro-animations */
-@keyframes neural-pulse {
-  0% { transform: scale(0.95); opacity: 0.3; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.3; }
+/* Loading State Animations */
+@keyframes dash-scroll {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
 }
 
-.animate-pulse-slow {
-  animation: neural-pulse 4s infinite cubic-bezier(0.4, 0, 0.2, 1);
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
-.stagger-in > * {
-  animation: slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes pulse-neu {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
 }
 
-@keyframes slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-pulse-neu {
+  animation: pulse-neu 2s infinite;
+}
+
+.thought-chain-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+  animation: dash-scroll 2s linear infinite;
+}
+
+/* Task Priority Indicators */
+.priority-high { border-left: 2px solid var(--error); }
+.priority-medium { border-left: 2px solid var(--warning); }
+.priority-low { border-left: 2px solid var(--border); }
+
+/* Manual Prose Styling for Markdown */
+.prose-xs {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.prose-xs p {
+  margin-bottom: 1rem;
+  color: rgba(250, 250, 250, 0.8);
+}
+
+.prose-xs strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.prose-xs ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.prose-xs h1 {
+  font-family: var(--font-syne);
+  color: var(--accent);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+/* Scrollbar Control */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }

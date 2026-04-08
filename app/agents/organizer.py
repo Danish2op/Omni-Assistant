@@ -8,24 +8,29 @@ class OrganizerAgent:
         self.db_client = SupabaseClient()
         self.llm = GeminiClient()
 
-    def handle_query(self, user_input: str) -> str:
+    def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
         # Action A: Intent Analysis
-        intent_prompt = (
-            f"Analyze this user input: '{user_input}'. "
-            "Does the user want to CREATE a task, LIST/view tasks, or UPDATE/mark a task as done? "
-            "Respond with only 'CREATE', 'LIST', or 'UPDATE'."
-        )
-        intent_response = self.llm.generate_response(prompt=intent_prompt)
-        intent = intent_response.strip().upper()
+        if pre_intent and pre_intent != "UNKNOWN":
+            intent = pre_intent
+        else:
+            intent_prompt = (
+                f"Analyze this user input: '{user_input}'. "
+                "Does the user want to CREATE a task, LIST/view tasks, or UPDATE/mark a task as done? "
+                "Respond with only 'CREATE', 'LIST', or 'UPDATE'."
+            )
+            intent_response = self.llm.generate_response(prompt=intent_prompt)
+            intent = intent_response.strip().upper()
 
-        current_time = datetime.now().isoformat()
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        effective_query = processed_query if processed_query else user_input
 
         # Action B: Execution
         if "CREATE" in intent:
             extract_prompt = (
-                f"Extract task details from this message: '{user_input}'. "
-                f"The current time is roughly {current_time}. "
-                "Format as JSON with exactly three keys: 'task_name' (string), 'due_date' (ISO timestamp string, or null if unmentioned), and 'priority' (string: 'high', 'medium', or 'low')."
+                f"Extract task details from this message: '{effective_query}'. "
+                f"The current reference time is {current_time}. "
+                "Format as JSON with exactly three keys: 'task_name' (string), 'due_date' (ISO timestamp string including time if mentioned, or null if unmentioned), and 'priority' (string: 'high', 'medium', or 'low'). "
+                "If only a date is mentioned without time, default to 09:00:00 for that date."
             )
             extract_response = self.llm.generate_response(
                 prompt=extract_prompt, 
@@ -60,12 +65,14 @@ class OrganizerAgent:
             
             synth_prompt = (
                 f"You are the Organizer for the Omni-Agent. Format the user's task list.\n"
-                f"User Request: {user_input}\n"
+                f"User Request: {effective_query}\n"
                 f"Task Records:\n{json.dumps(records, default=str)}\n\n"
                 "INSTRUCTIONS:\n"
                 "1. Return a clean, simple bulleted list of tasks.\n"
-                "2. FORMAT: Task: [Name] | Due: [Date or 'None'] | Priority: [Priority].\n"
-                "3. Ensure the output is professional and easy to scan."
+                "2. FORMAT: - **[Task Name]** | Due: [Date and Time] | Status: [Status] | Priority: [Priority]\n"
+                "3. If using a table, ensure property markdown row spacing (new lines between rows).\n"
+                "4. Use strikethrough ~~task~~ for completed items.\n"
+                "5. Ensure the output is professional and easy to scan."
             )
             return self.llm.generate_response(
                 prompt=synth_prompt, 
@@ -77,7 +84,7 @@ class OrganizerAgent:
             records = self.db_client.get_data('tasks', {"status": "pending"})
             
             find_prompt = (
-                f"The user wants to update a task status to completed based on this message: '{user_input}'.\n"
+                f"The user wants to update a task status to completed based on this message: '{effective_query}'.\n"
                 f"Here are the current pending tasks:\n{json.dumps(records, default=str)}\n\n"
                 f"Identify the ID of the task they completed. Format as JSON with key 'task_id'. Return null if none match."
             )
