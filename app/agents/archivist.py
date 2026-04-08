@@ -65,15 +65,19 @@ class ArchivistAgent:
             records = self.db_client.get_data('knowledge_base', query_filter)
             
             synth_prompt = (
-                f"You need to answer the user's query based on the knowledge base records.\n"
-                f"User Query: {user_input}\n"
-                f"Search Keyword Extracted: {search_keyword}\n\n"
-                f"Records:\n{json.dumps(records, default=str)}\n\n"
-                "Synthesize a natural answer. If the information is not present in the records, politely inform the user that you couldn't find that information."
+                f"You are the Archivist of the Omni-Agent knowledge base.\n"
+                f"Your mission: Provide a natural, insightful answer based ONLY on the User Query and the Knowledge Records provided below.\n\n"
+                f"USER QUERY: {user_input}\n"
+                f"KNOWLEDGE RECORDS:\n{json.dumps(records, default=str)}\n\n"
+                "RULES:\n"
+                "1. If the user asks 'What do you have in my knowledge base?', 'What do you remember?', or similar, you MUST list and summarize ALL relevant records.\n"
+                "2. DO NOT describe your 'three functional pillars', internal mechanisms, or agent architecture.\n"
+                "3. If information is missing, state it clearly but check if any partial matches exist.\n"
+                "4. Be professional, concise, and direct."
             )
             return self.llm.generate_response(
                 prompt=synth_prompt, 
-                system_instruction="You are the Archivist agent. Provide concise, helpful answers."
+                system_instruction="You are the Archivist agent. Summarize user data with high accuracy. Do not talk about yourself."
             )
         
         return "I could not determine if you wanted to STORE or RETRIEVE information."

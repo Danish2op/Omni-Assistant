@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Syne, Outfit } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin"],
+  weight: ["400", "700", "800"],
+});
+
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Omni-Agent | AI Command Center",
+  title: "Omni-Agent | Neural Monolith",
   description: "Advanced Neural-Core Orchestration Dashboard",
 };
 
@@ -19,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.variable} antialiased selection:bg-accent selection:text-background`}>
+      <body className={`${syne.variable} ${outfit.variable} antialiased selection:bg-cyan-500/30 selection:text-white`}>
         {children}
       </body>
     </html>

@@ -4,18 +4,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, 
   Database, 
   CheckCircle2, 
   Clock, 
   MessageSquare, 
-  Search, 
+  User,
+  Cpu, 
   Zap,
   LayoutDashboard,
-  Cpu,
   RefreshCw,
-  Plus
+  Search,
+  Activity,
+  Terminal,
+  ChevronRight,
+  ShieldCheck,
+  BrainCircuit,
+  Command
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -26,21 +33,53 @@ function cn(...inputs: ClassValue[]) {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Real Tool-Chain Sequence Config
+const STEP_SEQUENCES: Record<string, string[]> = {
+  ANALYST: [
+    "Router: Intent Identified (Analyst)",
+    "Analyst: Querying Financial News API...",
+    "Gemini: Synthesizing Market Briefing..."
+  ],
+  ARCHIVIST: [
+    "Router: Intent Identified (Archivist)",
+    "Archivist: Accessing Long-Term Memory...",
+    "Gemini: Formatting Knowledge Retrieval..."
+  ],
+  ORGANIZER: [
+    "Router: Intent Identified (Organizer)",
+    "Organizer: Updating Task Queue...",
+    "Gemini: Confirming Schedule Change..."
+  ],
+  GENERAL: [
+    "Router: Intent Identified (General)",
+    "Core: Accessing Linguistic Models...",
+    "Gemini: Drafting Neural Response..."
+  ],
+  DEFAULT: [
+    "Router: Identifying Neural Intent...",
+    "Neural Core: Allocating Sub-Processors...",
+    "Gemini: Processing Request..."
+  ]
+};
+
 export default function Dashboard() {
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string, intent?: string }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState(0);
+  const [currentIntent, setCurrentIntent] = useState<string | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Initial Fetch & Connection Health
   useEffect(() => {
     fetchData();
-    //Initial mock message
+    console.log("Neural Core: Verifying Database Connection...");
     setMessages([{ 
       role: 'ai', 
-      text: 'Omni-Assistant Online. Systems ready. How can I assist you in your command center today?',
+      text: 'Neural Core Online. All monolith modules synchronized. Command line ready for neural orchestration.',
       intent: 'SYSTEM'
     }]);
   }, []);
@@ -49,25 +88,28 @@ export default function Dashboard() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading, loadingPhase]);
 
   const fetchData = async () => {
     setIsRefreshing(true);
     try {
-      const { data: taskData } = await supabase
+      const { data: taskData, error: taskError } = await supabase
         .from('tasks')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('due_date', { ascending: true });
       
-      const { data: kbData } = await supabase
+      const { data: kbData, error: kbError } = await supabase
         .from('knowledge_base')
         .select('*')
-        .order('timestamp', { ascending: false });
+        .order('created_at', { ascending: false });
+
+      if (taskError) console.error("Task Fetch Error:", taskError);
+      if (kbError) console.error("KB Fetch Error:", kbError);
 
       setTasks(taskData || []);
       setKnowledge(kbData || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Core Logic Failure during data fetch:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -81,213 +123,337 @@ export default function Dashboard() {
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
     setIsLoading(true);
+    setLoadingPhase(0);
+    setCurrentIntent(null);
+
+    // Simulate Thinking Progression
+    const phaseInterval = setInterval(() => {
+      setLoadingPhase(prev => (prev < 2 ? prev + 1 : prev));
+    }, 1200);
 
     try {
       const response = await axios.post(`${API_URL}/chat`, { message: userMessage });
       const data = response.data;
+      
+      // Update intent mid-thinking if response arrives fast
+      setCurrentIntent(data.intent);
 
-      setMessages(prev => [...prev, { 
-        role: 'ai', 
-        text: data.response || data.message || (data.status === 'Error' ? `System Error: ${data.error}` : "I've processed your request."),
-        intent: data.intent
-      }]);
+      // Force high-end completion feel
+      setTimeout(() => {
+        clearInterval(phaseInterval);
+        setMessages(prev => [...prev, { 
+          role: 'ai', 
+          text: data.response || data.message || (data.status === 'Error' ? `System Error: ${data.error}` : "Command executed successfully."),
+          intent: data.intent
+        }]);
+        setIsLoading(false);
+        
+        // REFRESH CHECK: Immediate sync after STORE/CREATE actions
+        if (data.intent === 'ORGANIZER' || data.intent === 'ARCHIVIST') {
+          fetchData(); 
+        }
+      }, 800);
 
-      // AUTO-REFRESH Logic: If the agent did something, refresh the state
-      if (data.intent === 'ORGANIZER' || data.intent === 'ARCHIVIST') {
-        setTimeout(fetchData, 1000); // Small delay to let DB settle
-      }
     } catch (error) {
+      clearInterval(phaseInterval);
       setMessages(prev => [...prev, { 
         role: 'ai', 
-        text: "Error communicating with the brain. Check backend status.",
+        text: "Neural break detected. Response synthesis failed. Check connection to Core.",
         intent: 'ERROR'
       }]);
-    } finally {
       setIsLoading(false);
     }
   };
 
+  const currentSteps = STEP_SEQUENCES[currentIntent || 'DEFAULT'] || STEP_SEQUENCES.DEFAULT;
+
   return (
-    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
-      {/* LEFT SIDEBAR: KNOWLEDGE PANEL */}
-      <aside className="w-80 glass-panel border-r flex flex-col">
-        <div className="p-6 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-accent animate-neon" />
-            <h2 className="font-bold tracking-wider text-sm uppercase">Neural Core</h2>
+    <div className="flex h-screen w-full bg-[#050505] text-[#E0E0E0] overflow-hidden font-outfit selection:bg-cyan-500/30">
+      <div className="neural-mesh opacity-40" />
+      
+      {/* LEFT MODULE: KNOWLEDGE (MONOLITH SIDEBAR) */}
+      <motion.aside 
+        initial={{ x: -100, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "circOut" }}
+        className="w-[320px] bg-[#0A0A0A]/80 backdrop-blur-xl border-r border-white/5 flex flex-col z-20"
+      >
+        <div className="p-10 pb-6 flex items-center justify-between">
+          <div className="flex flex-col">
+            <h2 className="text-[#00F5FF] text-[10px] font-bold uppercase tracking-[4px] mb-2">Memory Bank</h2>
+            <div className="h-[1px] w-8 bg-[#00F5FF]/50" />
           </div>
-          <button onClick={fetchData} className={cn("text-gray-400 hover:text-accent transition-all", isRefreshing && "animate-spin")}>
-            <RefreshCw className="w-4 h-4" />
+          <button 
+            onClick={fetchData} 
+            disabled={isRefreshing}
+            className={cn(
+              "p-2 rounded-none border border-white/10 hover:border-[#00F5FF]/50 transition-all text-white/40 hover:text-[#00F5FF]",
+              isRefreshing && "animate-spin"
+            )}
+          >
+            <RefreshCw className="w-3 h-3" />
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-[0.2em]">Knowledge Base</div>
+        <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6 custom-scrollbar">
           {knowledge.length === 0 ? (
-            <div className="text-sm text-gray-600 italic p-4 text-center">No neural entries found.</div>
+            <div className="text-[11px] text-white/10 italic py-10 text-center border border-dashed border-white/5 mx-2">
+              Neural Memory Empty
+            </div>
           ) : (
-            knowledge.map((item) => (
-              <div key={item.id} className="glass-card p-4 rounded-lg space-y-2">
-                <div className="flex items-center gap-2 text-accent text-xs font-mono">
-                  <Database className="w-3 h-3" />
-                  <span>ENTRY_{item.id.slice(0, 4)}</span>
+            knowledge.map((item, i) => (
+              <motion.div 
+                initial={{ x: -10, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.03 }}
+                key={item.id} 
+                className="group p-5 bg-white/[0.01] border border-white/5 hover:bg-[#00F5FF]/5 hover:border-[#00F5FF]/20 transition-all relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 p-1">
+                  <ShieldCheck className="w-2.5 h-2.5 text-white/10 group-hover:text-[#00F5FF]/40" />
                 </div>
-                <p className="text-sm line-clamp-3 leading-relaxed opacity-90">{item.content}</p>
-                <div className="text-[10px] text-gray-500 font-mono">
-                  {new Date(item.timestamp).toLocaleString()}
+                <p className="text-[12px] leading-relaxed text-white/60 group-hover:text-white/90 transition-colors mb-3">{item.content}</p>
+                <div className="flex items-center justify-between text-[9px] font-mono text-white/20">
+                  <span className="bg-white/5 px-1.5 py-0.5">{item.category?.toUpperCase() || 'DATA'}</span>
+                  <span>{new Date(item.created_at).toLocaleDateString()}</span>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
         </div>
-      </aside>
+      </motion.aside>
 
-      {/* CENTER: CHAT HUB */}
-      <main className="flex-1 flex flex-col relative">
-        <header className="p-6 glass-panel border-b z-10">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-black italic tracking-tighter neon-text flex items-center gap-2">
-              OMNI-AGENT <span className="text-xs font-normal not-italic text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20">V1.0 LIVE</span>
-            </h1>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                Backend: Online
+      {/* CENTER: CHAT HUB (THE MONOLITH) */}
+      <main className="flex-1 flex flex-col relative z-10">
+        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-[#050505] to-transparent z-0" />
+        
+        <motion.header 
+          initial={{ y: -50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="px-12 py-10 flex items-center justify-between relative z-10"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 border border-[#00F5FF]/30 flex items-center justify-center bg-[#00F5FF]/5 shadow-[0_0_20px_rgba(0,245,255,0.1)]">
+              <BrainCircuit className="w-5 h-5 text-[#00F5FF]" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-[-0.05em] text-white font-syne">
+                OMNI<span className="text-[#00F5FF]">AGENT</span>
+              </h1>
+              <div className="flex items-center gap-4 mt-1">
+                <span className="text-[9px] font-bold text-[#FFCC00]/60 uppercase tracking-[2px]">Core Version: 1.0.4</span>
+                <div className="w-1 h-1 rounded-full bg-white/10" />
+                <span className="text-[9px] font-bold text-white/20 uppercase tracking-[2px]">Latency: 18ms</span>
               </div>
             </div>
           </div>
-        </header>
+          
+          <div className="flex gap-2">
+            <div className="px-3 py-1.5 border border-white/5 bg-white/[0.02] text-[9px] font-mono text-white/30 uppercase tracking-widest">
+              Secured_Channel_Alpha
+            </div>
+          </div>
+        </motion.header>
 
-        {/* Message Area */}
+        {/* Message Terminal Area */}
         <div 
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-8 space-y-6 scroll-smooth"
+          className="flex-1 overflow-y-auto space-y-10 px-12 py-10 hide-scrollbar"
         >
-          {messages.map((msg, i) => (
-            <div 
-              key={i} 
-              className={cn(
-                "flex flex-col max-w-[80%] space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300",
-                msg.role === 'user' ? "ml-auto items-end" : "items-start"
-              )}
-            >
-              <div className={cn(
-                "px-5 py-3 rounded-2xl text-sm leading-relaxed",
-                msg.role === 'user' 
-                  ? "bg-accent-secondary text-white rounded-tr-none shadow-lg shadow-accent-secondary/20" 
-                  : "glass-card rounded-tl-none border-l-2 border-l-accent"
-              )}>
-                {msg.role === 'ai' ? (
-                  <article className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                        h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-blue-400">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-md font-bold mb-2 text-blue-300">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-sm font-bold mb-1 text-blue-200">{children}</h3>,
-                        ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
-                        li: ({ children }) => <li className="mb-1">{children}</li>,
-                        strong: ({ children }) => <strong className="font-bold text-blue-300">{children}</strong>,
-                      }}
-                    >
-                      {msg.text}
-                    </ReactMarkdown>
-                  </article>
-                ) : (
-                  msg.text
+          <AnimatePresence mode="popLayout">
+            {messages.map((msg, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  "flex flex-col max-w-[80%] gap-3",
+                  msg.role === 'user' ? "ml-auto items-end" : "items-start"
                 )}
-              </div>
-              {msg.intent && msg.intent !== 'UNKNOWN' && (
-                <span className="text-[9px] font-mono text-accent uppercase tracking-widest px-2 py-1 rounded bg-accent/5 border border-accent/10">
-                  INTENT_DETECTED: {msg.intent}
-                </span>
-              )}
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex items-start gap-2 animate-pulse">
-              <div className="glass-card px-5 py-3 rounded-2xl rounded-tl-none border-l-2 border-l-accent">
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:0.2s]" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce [animation-delay:0.4s]" />
+              >
+                <div className={cn(
+                  "flex items-center gap-2",
+                  msg.role === 'user' ? "flex-row-reverse" : "flex-row"
+                )}>
+                   <div className={cn(
+                     "w-1 h-1 rounded-full",
+                     msg.role === 'user' ? "bg-white/20" : "bg-[#00F5FF]"
+                   )} />
+                   <span className="text-[9px] font-bold uppercase tracking-[2px] text-white/30">
+                     {msg.role === 'user' ? 'Local System' : 'Neural Dispatch'}
+                   </span>
                 </div>
+                
+                <div className={cn(
+                  "p-6 border relative",
+                  msg.role === 'user' 
+                    ? "bg-[#111] border-white/5 text-white/90" 
+                    : "bg-[#0A0A0A] border-[#00F5FF]/10 text-white shadow-[inset_0_0_20px_rgba(0,245,255,0.02)]"
+                )}>
+                  {msg.role === 'ai' && (
+                    <div className="absolute top-0 left-0 w-[1px] h-full bg-[#00F5FF]/30" />
+                  )}
+                  
+                  {msg.role === 'ai' ? (
+                    <div className="prose prose-invert prose-sm max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => <p className="mb-4 last:mb-0 leading-relaxed opacity-80">{children}</p>,
+                          h1: ({ children }) => <h1 className="text-lg font-syne text-[#00F5FF] mt-6 mb-3 uppercase tracking-tighter">{children}</h1>,
+                          strong: ({ children }) => <strong className="text-[#00F5FF] font-bold">{children}</strong>,
+                          ul: ({ children }) => <ul className="space-y-3 my-4 border-l border-white/5 pl-5">{children}</ul>,
+                          li: ({ children }) => <li className="flex gap-2 before:content-['•'] before:text-[#00F5FF]/60">{children}</li>
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-sm opacity-90">{msg.text}</p>
+                  )}
+                </div>
+                {msg.intent && msg.intent !== 'SYSTEM' && (
+                  <div className="flex items-center gap-2 border-t border-white/5 pt-2 w-full">
+                    <span className="text-[8px] font-mono text-[#00F5FF]/40 uppercase tracking-[3px]">Silo: {msg.intent}</span>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          
+          {isLoading && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-4 border-l border-[#00F5FF]/10 pl-8 py-4 bg-white/[0.01]"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-[#00F5FF] animate-pulse shadow-[0_0_10px_#00F5FF]" />
+                <span className="text-[10px] font-bold text-[#00F5FF] uppercase tracking-[3px]">Neural Orchestration In Progress</span>
               </div>
-            </div>
+              {currentSteps.map((step, idx) => (
+                <motion.div 
+                  key={idx}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ 
+                    opacity: loadingPhase >= idx ? 1 : 0.1, 
+                    x: loadingPhase >= idx ? 0 : -5 
+                  }}
+                  className="flex items-center gap-4 transition-all duration-700"
+                >
+                  <div className={cn(
+                    "w-1 h-[10px] bg-white/10",
+                    loadingPhase === idx && "bg-[#00F5FF] shadow-[0_0_5px_#00F5FF]"
+                  )} />
+                  <span className={cn(
+                    "text-[10px] uppercase font-mono tracking-[4px]",
+                    loadingPhase === idx ? "text-[#00F5FF] translate-x-1" : "text-white/10"
+                  )}>
+                    {step}
+                  </span>
+                </motion.div>
+              ))}
+            </motion.div>
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="p-8 mt-auto">
+        {/* Neural Input Module */}
+        <div className="p-12 pt-0 mt-auto relative z-10">
           <form 
             onSubmit={sendMessage}
-            className="flex items-center gap-3 glass-panel p-2 rounded-2xl border-white/10 ring-1 ring-white/5 shadow-2xl"
+            className="relative group"
           >
-            <input 
-              type="text" 
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Input command for neural network..."
-              className="flex-1 bg-transparent px-4 py-2 outline-none text-sm placeholder:text-gray-600"
-              autoFocus
-            />
-            <button 
-              type="submit"
-              disabled={isLoading}
-              className="aspect-square w-10 flex items-center justify-center bg-accent text-background rounded-xl hover:scale-105 transition-all shadow-[0_0_15px_rgba(0,242,255,0.4)] disabled:opacity-50 disabled:scale-100"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            <div className="absolute -inset-0.5 bg-[#00F5FF]/10 opacity-0 group-focus-within:opacity-100 transition duration-1000 blur-xl" />
+            <div className="relative bg-[#0A0A0A] border border-white/10 group-focus-within:border-[#00F5FF]/40 transition-all flex items-center p-1">
+              <div className="px-5 text-white/20">
+                <Command className="w-4 h-4" />
+              </div>
+              <input 
+                type="text" 
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="AWAITING NEURAL COMMAND..."
+                className="flex-1 bg-transparent px-4 py-6 outline-none text-xs font-mono tracking-[0.2em] placeholder:text-white/5 text-white/90 uppercase"
+                autoFocus
+              />
+              <button 
+                type="submit"
+                disabled={isLoading}
+                className="w-20 h-16 flex items-center justify-center bg-white/5 hover:bg-[#00F5FF] hover:text-black transition-all group-disabled:opacity-10"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
           </form>
+          <div className="mt-4 flex justify-between text-[8px] font-mono text-white/10 uppercase tracking-[3px]">
+            <span>Channel_01: ACTIVE</span>
+            <span>Encryption_Type: QUANTUM_AES</span>
+          </div>
         </div>
       </main>
 
-      {/* RIGHT SIDEBAR: TASK BOARD */}
-      <aside className="w-80 glass-panel border-l flex flex-col">
-        <div className="p-6 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-accent-secondary animate-pulse" />
-            <h2 className="font-bold tracking-wider text-sm uppercase">Active Tasks</h2>
-          </div>
-          <div className="text-[10px] bg-accent-secondary/20 text-accent-secondary px-2 py-0.5 rounded-full font-bold">
-            {tasks.filter(t => t.status === 'pending').length} ACTIVE
-          </div>
+      {/* RIGHT MODULE: TASKS (THE QUEUE) */}
+      <motion.aside 
+        initial={{ x: 100, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "circOut" }}
+        className="w-[360px] bg-[#0A0A0A]/80 backdrop-blur-xl border-l border-white/5 flex flex-col z-20"
+      >
+        <div className="p-10 pb-6">
+          <h2 className="text-[#00F5FF] text-[10px] font-bold uppercase tracking-[4px] mb-2">Task Pipeline</h2>
+          <div className="h-[1px] w-8 bg-[#00F5FF]/50" />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-[0.2em]">Live Queue</div>
+        <div className="flex-1 overflow-y-auto px-8 py-4 space-y-4 custom-scrollbar">
           {tasks.length === 0 ? (
-            <div className="text-sm text-gray-600 italic p-4 text-center">Neural queue empty.</div>
+            <div className="text-[11px] text-white/10 italic py-10 text-center border border-dashed border-white/5 mx-2">
+              Queue Standby
+            </div>
           ) : (
-            tasks.map((task) => (
-              <div key={task.id} className={cn(
-                "glass-card p-4 rounded-lg border-l-2 transition-all group",
-                task.status === 'completed' ? "border-l-green-500 opacity-60" : "border-l-accent-secondary"
-              )}>
-                <div className="flex items-start justify-between mb-2">
+            tasks.map((task, i) => (
+              <motion.div 
+                initial={{ x: 10, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: i * 0.03 }}
+                key={task.id} 
+                className={cn(
+                  "p-5 border relative group transition-all",
+                  task.status === 'completed' 
+                    ? "bg-transparent border-white/5 opacity-30 grayscale" 
+                    : "bg-white/[0.01] border-white/10 hover:border-[#00F5FF]/40"
+                )}
+              >
+                {task.status === 'pending' && (
+                  <div className="absolute top-0 left-0 w-1 h-1 bg-[#00F5FF]/60" />
+                )}
+                
+                <div className="flex items-start justify-between gap-4 mb-4">
                   <p className={cn(
-                    "text-sm font-medium",
-                    task.status === 'completed' && "line-through text-gray-500"
+                    "text-[12px] font-bold tracking-tight text-white/80",
+                    task.status === 'completed' && "line-through"
                   )}>{task.task_name}</p>
-                  {task.status === 'completed' ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <div className="flex gap-1">
-                      {task.priority === 'high' && <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]" title="High Priority" />}
-                      <Clock className="w-4 h-4 text-accent-secondary group-hover:rotate-12 transition-transform" />
-                    </div>
-                  )}
+                  <div className="mt-1">
+                    {task.status === 'completed' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#00F5FF]" />
+                    ) : (
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        task.priority === 'high' ? "bg-red-500 animate-pulse shadow-[0_0_8px_red]" : "bg-white/10"
+                      )} />
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono">
-                  <span>DUE: {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'N/A'}</span>
-                  <span className="uppercase text-[8px] bg-white/5 px-2 py-0.5 rounded">{task.status}</span>
+                
+                <div className="flex items-center justify-between text-[8px] font-mono tracking-widest text-white/30">
+                  <span className="border-l border-white/10 pl-2 uppercase">{task.priority || 'NORMAL'}</span>
+                  <span>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'NO_DEADLINE'}</span>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
         </div>
-      </aside>
+      </motion.aside>
     </div>
   );
 }

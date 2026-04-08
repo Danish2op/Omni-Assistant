@@ -59,14 +59,17 @@ class OrganizerAgent:
             records = self.db_client.get_data('tasks', query_filter)
             
             synth_prompt = (
-                f"You need to format the user's list of tasks.\n"
+                f"You are the Organizer for the Omni-Agent. Format the user's task list.\n"
                 f"User Request: {user_input}\n"
                 f"Task Records:\n{json.dumps(records, default=str)}\n\n"
-                "Format the list into a clean, human-readable schedule. Prioritize pending tasks. Make it look professional and actionable."
+                "INSTRUCTIONS:\n"
+                "1. Return a clean, simple bulleted list of tasks.\n"
+                "2. FORMAT: Task: [Name] | Due: [Date or 'None'] | Priority: [Priority].\n"
+                "3. Ensure the output is professional and easy to scan."
             )
             return self.llm.generate_response(
                 prompt=synth_prompt, 
-                system_instruction="You are the Organizer agent. Structure schedules clearly."
+                system_instruction="You are the Organizer agent. Output EXACTLY the requested format. No fluff."
             )
 
         elif "UPDATE" in intent:
