@@ -16,5 +16,31 @@
 - [x] Implemented `/test-db` endpoint to verify connection
 - [x] Database Layer is now active (Schema SQL executed and connectivity verified)
 
+## Task 3: The Brain (Router & Gemini Integration)
+- [x] Added google-genai to requirements.txt (migrated from deprecated google-generativeai)
+- [x] Implemented GeminiClient in app/core/llm.py using gemini-2.5-flash
+- [x] Implemented RouterAgent in app/agents/router.py with JSON intent classification
+- [x] Added POST /chat endpoint in main.py
+- [x] Verified LLM connectivity (Hello test passed)
+- [x] Verified routing: "What is the price of Nvidia?" → ANALYST ✅
+- [x] Verified routing: "Remember that my dog's name is Max." → ARCHIVIST ✅
+- [x] Verified routing: "Schedule a meeting for tomorrow." → ORGANIZER ✅
+- [x] Router is active and Gemini is integrated
+
+## Architecture Notes
+- Using `google-genai` SDK (new), NOT the deprecated `google-generativeai`
+- Model: `gemini-2.5-flash` (free tier: 5 req/min rate limit)
+- RouterAgent outputs JSON: `{"intent": "CATEGORY", "reasoning": "..."}`
+- Categories: ANALYST, ARCHIVIST, ORGANIZER
+
+## Task 4: The Analyst (News API Integration)
+- [x] Refactored `app/tools/news_api.py` to include `NewsTool` class while preserving standalone FastAPI service capability.
+- [x] Added `slowapi` and `apscheduler` dependencies.
+- [x] Created `app/agents/analyst.py` with `AnalystAgent` to fetch news and synthesize it using Gemini.
+- [x] Updated `/chat` endpoint in `main.py` to route "ANALYST" queries to `AnalystAgent`.
+- [x] Verified end-to-end pipeline: "What is happening in the Indian stock market today?" -> JSON response with a synthesized 2-3 sentence market briefing.
+- [x] Analyst pipeline is fully operational.
+
 ## Next Steps
-- Waiting for subsequent task definitions.
+- Implement Archivist Agent (Database interaction).
+- Implement Organizer Agent.

@@ -651,6 +651,76 @@ async def shutdown_event():
 
 
 # ============================================================================
+# NEWS TOOL CLASS (for use by AnalystAgent)
+# ============================================================================
+
+class NewsTool:
+    """
+    Lightweight wrapper around the RSS feed fetching logic.
+    Used by the AnalystAgent to get news data without running the full FastAPI app.
+    """
+
+    def __init__(self):
+        self.rss_feeds = RSS_FEEDS
+        self.session = SESSION
+
+    def fetch_latest_news(self, query: str = None, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Fetch latest news from all RSS feeds synchronously.
+
+        Args:
+            query: Optional search term to filter articles by title/summary.
+            limit: Maximum number of articles to return (default 20).
+
+        Returns:
+            List of dicts with keys: source, title, summary, link, date.
+        """
+        all_items = []
+
+        for source_name, feed_url in self.rss_feeds.items():
+            items = fetch_single_feed(source_name, feed_url)
+            all_items.extend(items)
+
+        # Deduplicate
+        seen = set()
+        deduplicated = []
+        for item in all_items:
+            url_hash = hash_url(item["link"])
+            if url_hash not in seen:
+                seen.add(url_hash)
+                deduplicated.append(item)
+
+        # Sort newest first
+        deduplicated.sort(
+            key=lambda x: x.get("published_datetime", datetime.min.replace(tzinfo=timezone.utc)),
+            reverse=True
+        )
+
+        # Filter by query if provided
+        if query:
+            query_lower = query.lower()
+            deduplicated = [
+                item for item in deduplicated
+                if query_lower in item.get("title", "").lower()
+                or query_lower in item.get("summary", "").lower()
+                or query_lower in item.get("source", "").lower()
+            ]
+
+        # Return limited, cleaned results
+        results = []
+        for item in deduplicated[:limit]:
+            results.append({
+                "source": item["source"],
+                "title": item["title"],
+                "summary": item["summary"],
+                "link": item["link"],
+                "date": item["date"]
+            })
+
+        return results
+
+
+# ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================
 
