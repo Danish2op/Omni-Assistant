@@ -5,6 +5,7 @@ import os
 from app.core.database import SupabaseClient
 from app.agents.router import RouterAgent
 from app.agents.analyst import AnalystAgent
+from app.agents.archivist import ArchivistAgent
 
 # Load environment variables
 load_dotenv()
@@ -13,6 +14,7 @@ app = FastAPI()
 db_client = SupabaseClient()
 router_agent = RouterAgent()
 analyst_agent = AnalystAgent()
+archivist_agent = ArchivistAgent()
 
 
 class ChatRequest(BaseModel):
@@ -47,12 +49,20 @@ def chat(request: ChatRequest):
                 "reasoning": result.get("reasoning", ""),
                 "response": answer
             }
-        elif intent in ("ARCHIVIST", "ORGANIZER"):
+        elif intent == "ARCHIVIST":
+            answer = archivist_agent.handle_query(request.message)
+            return {
+                "status": "Completed",
+                "intent": intent,
+                "reasoning": result.get("reasoning", ""),
+                "response": answer
+            }
+        elif intent == "ORGANIZER":
             return {
                 "status": "Routed",
                 "intent": intent,
                 "reasoning": result.get("reasoning", ""),
-                "message": "Sub-agent not yet implemented."
+                "message": "Organizer agent not yet implemented."
             }
         else:
             return {

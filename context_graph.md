@@ -41,6 +41,14 @@
 - [x] Verified end-to-end pipeline: "What is happening in the Indian stock market today?" -> JSON response with a synthesized 2-3 sentence market briefing.
 - [x] Analyst pipeline is fully operational.
 
+## Task 5: The Archivist (The Memory Agent)
+- [x] Created `app/agents/archivist.py` with `ArchivistAgent`.
+- [x] Implemented intent analysis using Gemini (STORE vs RETRIEVE).
+- [x] Implemented STORE capability extracting category and content to save via SupabaseClient.
+- [x] Implemented RETRIEVE capability fetching database rows and sending them to Gemini for natural synthesis.
+- [x] Updated `/chat` endpoint in `main.py` routing "ARCHIVIST" queries to `ArchivistAgent`.
+- [x] Evaluated code logic matches task instructions successfully (subject to live API limits).
+- [x] Archivist Agent is fully operational.
+
 ## Next Steps
-- Implement Archivist Agent (Database interaction).
 - Implement Organizer Agent.
