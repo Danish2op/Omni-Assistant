@@ -1,0 +1,74 @@
+INFO:     Started server process [59984]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+Neural Hub: Starting background background tasks...
+[2026-04-09 01:24:04.880018] Neural Hub: Refreshing news cache...
+✓ Fetched 15 items from Live Mint Money
+✓ Fetched 0 items from Business Today Markets
+✓ Fetched 15 items from Hindu BusinessLine Markets
+✓ Fetched 15 items from Live Mint Markets
+✓ Fetched 15 items from Hindu BusinessLine Stock Markets
+✓ Fetched 15 items from Rediff Money
+✗ HTTP error fetching Business Standard Markets: 403
+✗ HTTP error fetching Business Standard Finance: 403
+✓ Fetched 15 items from Economic Times Markets
+✓ Fetched 0 items from Economic Times Mutual Funds
+✓ Fetched 15 items from Economic Times Industry
+✓ Fetched 15 items from GoodReturns Money
+✓ Fetched 0 items from Economic Times Wealth
+✓ Fetched 15 items from GoodReturns IPO
+✓ Fetched 15 items from Hindu BusinessLine Companies
+✓ Fetched 0 items from Financial Express Markets
+✓ Fetched 15 items from Hindu BusinessLine Economy
+✓ Fetched 0 items from Financial Express Economy
+✓ Fetched 15 items from CNBC Personal Finance
+✓ Fetched 0 items from Financial Express Industry
+✓ Fetched 15 items from CNBC Business News
+✓ Fetched 15 items from CNBC Market News
+✓ Fetched 15 items from Moneycontrol Business
+✓ Fetched 15 items from Moneycontrol Buzzing Stocks
+✓ Fetched 15 items from Moneycontrol Technology
+✓ Fetched 15 items from Moneycontrol Mutual Funds
+✓ Fetched 15 items from Moneycontrol Latest News
+✓ Fetched 15 items from Moneycontrol Commodities
+✓ Fetched 15 items from Moneycontrol Special Picks
+✓ Fetched 15 items from Moneycontrol Top News
+✓ Fetched 15 items from Moneycontrol Market Reports
+✓ Fetched 15 items from NDTV Profit
+✓ Neural Hub: Cache updated. 344 new articles added. Total: 200
+[2026-04-09 01:25:04.882900] Neural Hub: Refreshing news cache...
+✓ Fetched 15 items from Live Mint Markets
+✓ Fetched 15 items from Hindu BusinessLine Stock Markets
+✓ Fetched 15 items from GoodReturns Money
+✓ Fetched 15 items from Live Mint Money
+✓ Fetched 15 items from Hindu BusinessLine Markets
+✓ Fetched 15 items from GoodReturns IPO
+✓ Fetched 0 items from Business Today Markets
+✗ HTTP error fetching Business Standard Finance: 403
+✓ Fetched 15 items from Rediff Money
+✓ Fetched 15 items from Moneycontrol Buzzing Stocks
+✗ HTTP error fetching Business Standard Markets: 403
+✓ Fetched 0 items from Financial Express Economy
+✓ Fetched 0 items from Financial Express Industry
+✓ Fetched 15 items from Moneycontrol Commodities
+✓ Fetched 15 items from Hindu BusinessLine Economy
+✓ Fetched 15 items from Hindu BusinessLine Companies
+✓ Fetched 0 items from Economic Times Wealth
+✓ Fetched 15 items from Moneycontrol Special Picks
+✓ Fetched 15 items from Moneycontrol Technology
+✓ Fetched 15 items from Moneycontrol Business
+✓ Fetched 0 items from Financial Express Markets
+✓ Fetched 15 items from Moneycontrol Latest News
+✓ Fetched 15 items from Moneycontrol Market Reports
+✓ Fetched 15 items from Moneycontrol Mutual Funds
+✓ Fetched 15 items from Moneycontrol Top News
+✓ Fetched 15 items from CNBC Market News
+✓ Fetched 15 items from Economic Times Markets
+✓ Fetched 0 items from Economic Times Mutual Funds
+✓ Fetched 15 items from CNBC Personal Finance
+✓ Fetched 15 items from NDTV Profit
+✓ Fetched 15 items from CNBC Business News
+✓ Fetched 15 items from Economic Times Industry
+✓ Neural Hub: Cache updated. 0 new articles added. Total: 200
+INFO:     127.0.0.1:49908 - "POST /chat HTTP/1.1" 200 OK

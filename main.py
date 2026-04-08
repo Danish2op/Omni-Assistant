@@ -3,18 +3,39 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 import os
 import traceback
+from contextlib import asynccontextmanager
 from app.core.database import SupabaseClient
 from app.agents.router import RouterAgent
 from app.agents.analyst import AnalystAgent
 from app.agents.archivist import ArchivistAgent
 from app.agents.organizer import OrganizerAgent
 from app.agents.general import GeneralAgent
+from app.tools.news_api import scheduler, update_news_cache
 from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables
 load_dotenv()
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Startup and Shutdown logic for the Neural Hub.
+    """
+    # Startup: Initialize News Cache
+    print("Neural Hub: Starting background background tasks...")
+    scheduler.add_job(update_news_cache, 'interval', seconds=60)
+    scheduler.start()
+    
+    # Run first update immediately to prime the cache
+    await update_news_cache()
+    
+    yield
+    
+    # Shutdown
+    print("Neural Hub: Shutting down scheduler...")
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(

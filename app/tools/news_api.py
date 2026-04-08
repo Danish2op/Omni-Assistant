@@ -23,6 +23,7 @@ from dateutil import parser as date_parser
 
 import feedparser
 import requests
+import re
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request, Query, Depends, HTTPException
@@ -59,7 +60,7 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 # ============================================================================
 
 RSS_FEEDS = {
-    # Stock Market & Trading focused feeds
+# Stock Market & Trading focused feeds
     "Business Today Markets": "https://www.businesstoday.in/rssfeeds?id=markets",
     "Hindu BusinessLine Markets": "https://www.thehindubusinessline.com/markets/feeder/default.rss",
     "Hindu BusinessLine Stock Markets": "https://www.thehindubusinessline.com/markets/stock-markets/feeder/default.rss",
@@ -75,13 +76,40 @@ RSS_FEEDS = {
     "GoodReturns IPO": "https://www.goodreturns.in/rss/feeds/ipo-fb.xml",
     "GoodReturns Money": "https://www.goodreturns.in/rss/feeds/money-news-fb.xml",
 
-    # Moneycontrol Feeds
-    "Moneycontrol Latest News": "https://www.moneycontrol.com/rss/latestnews.xml",
-    "Moneycontrol Top News": "https://www.moneycontrol.com/rss/MCtopnews.xml",
-    "Moneycontrol Buzzing Stocks": "https://www.moneycontrol.com/rss/buzzingstocks.xml",
-    "Moneycontrol Market Reports": "https://www.moneycontrol.com/rss/marketreports.xml",
-    "Moneycontrol Business": "https://www.moneycontrol.com/rss/business.xml",
-    "Moneycontrol Technology": "https://www.moneycontrol.com/rss/technology.xml"
+    # Moneycontrol Feeds (Using Google News RSS Workaround since official feeds are stale since April 2024)
+    "Moneycontrol Latest News": "https://news.google.com/rss/search?q=site:moneycontrol.com+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Top News": "https://news.google.com/rss/search?q=site:moneycontrol.com+top+news+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Buzzing Stocks": "https://news.google.com/rss/search?q=site:moneycontrol.com+buzzing+stocks+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Market Reports": "https://news.google.com/rss/search?q=site:moneycontrol.com+market+reports+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Business": "https://news.google.com/rss/search?q=site:moneycontrol.com+business+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Technology": "https://news.google.com/rss/search?q=site:moneycontrol.com+technology+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Mutual Funds": "https://news.google.com/rss/search?q=site:moneycontrol.com+mutual+funds+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Special Picks": "https://news.google.com/rss/search?q=site:moneycontrol.com+special+picks+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    "Moneycontrol Commodities": "https://news.google.com/rss/search?q=site:moneycontrol.com+commodities+when:2d&hl=en-IN&gl=IN&ceid=IN:en",
+    
+    # NDTV Profit & Business
+    "NDTV Profit": "https://feeds.feedburner.com/ndtvprofit-latest",
+    
+    # Economic Times
+    "Economic Times Markets": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+    "Economic Times Industry": "https://economictimes.indiatimes.com/industry/rssfeeds/13352306.cms",
+    "Economic Times Mutual Funds": "https://economictimes.indiatimes.com/mf/rssfeeds/8972232.cms",
+    "Economic Times Wealth": "https://economictimes.indiatimes.com/wealth/rssfeeds/8371186.cms",
+    
+    # Financial Express
+    "Financial Express Markets": "https://www.financialexpress.com/market/feed/",
+    "Financial Express Industry": "https://www.financialexpress.com/industry/feed/",
+    "Financial Express Economy": "https://www.financialexpress.com/economy/feed/",
+    
+    # CNBC TV18
+    "CNBC Market News": "https://www.cnbctv18.com/commonfeeds/v1/cne/rss/market.xml",
+    "CNBC Business News": "https://www.cnbctv18.com/commonfeeds/v1/cne/rss/business.xml",
+    "CNBC Personal Finance": "https://www.cnbctv18.com/commonfeeds/v1/cne/rss/personal-finance.xml",
+    
+    # Business Line (Additional)
+    "Hindu BusinessLine Companies": "https://www.thehindubusinessline.com/companies/feeder/default.rss",
+    "Hindu BusinessLine Economy": "https://www.thehindubusinessline.com/economy/feeder/default.rss",
+
 }
 
 
@@ -109,6 +137,46 @@ news_storage: deque = deque(maxlen=MAX_NEWS_ITEMS)
 # Set of URL hashes for O(1) duplicate detection
 seen_urls: Set[str] = set()
 
+# Initialize Scheduler
+scheduler = AsyncIOScheduler()
+
+async def update_news_cache():
+    """
+    Background worker that fetches ALL RSS feeds in parallel and populates memory.
+    Ensures zero-latency for user requests.
+    """
+    all_items = []
+    print(f"[{datetime.now()}] Neural Hub: Refreshing news cache...")
+    
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = [
+            executor.submit(fetch_single_feed, name, url) 
+            for name, url in RSS_FEEDS.items()
+        ]
+        for future in futures:
+            try:
+                all_items.extend(future.result())
+            except Exception as e:
+                print(f"Background Fetch Exception: {e}")
+
+    # Deduplicate and update global storage
+    count = 0
+    for item in all_items:
+        url_hash = hash_url(item["link"])
+        if url_hash not in seen_urls:
+            seen_urls.add(url_hash)
+            news_storage.appendleft(item)
+            count += 1
+            
+    # Sort storage by date
+    temp_list = list(news_storage)
+    temp_list.sort(key=lambda x: x.get("published_datetime", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    news_storage.clear()
+    news_storage.extend(temp_list)
+    
+    print(f"✓ Neural Hub: Cache updated. {count} new articles added. Total: {len(news_storage)}")
+
+# ============================================================================
 # PRODUCTION FIX: Per-source article tracking
 # Preserves articles when individual RSS feeds fail
 source_articles: Dict[str, List[Dict[str, Any]]] = {
@@ -284,29 +352,28 @@ def fetch_single_feed(source_name: str, feed_url: str) -> List[Dict[str, Any]]:
             published_dt = parse_date_from_entry(entry)
             timestamp = published_dt.isoformat()
             date = published_dt.strftime("%Y-%m-%d")
+        items = []
+        for entry in feed.entries[:15]:  # Process top 15 from each feed
+            pub_dt = parse_date_from_entry(entry)
             
-            # Skip if missing critical fields
-            if not title or not link:
-                continue
-            
-            news_item = {
+            items.append({
                 "source": source_name,
-                "title": title,
-                "summary": summary,
-                "link": link,
-                "timestamp": timestamp,
-                "date": date,
-                "published_datetime": published_dt  # Store for sorting
-            }
+                "title": entry.get("title", "No Title"),
+                "summary": sanitize_html(entry.get("summary", entry.get("description", ""))),
+                "link": entry.get("link", ""),
+                "date": convert_to_ist(pub_dt),
+                "published_datetime": pub_dt
+            })
             
-            news_items.append(news_item)
-        
-        print(f"✓ Fetched {len(news_items)} items from {source_name}")
+        print(f"✓ Fetched {len(items)} items from {source_name}")
+        return items
         
     except requests.exceptions.Timeout:
         print(f"✗ Timeout fetching {source_name}")
+        return []
     except requests.exceptions.ConnectionError:
         print(f"✗ Connection error fetching {source_name}")
+        return []
     except requests.exceptions.HTTPError as e:
         print(f"✗ HTTP error fetching {source_name}: {e.response.status_code}")
     except Exception as e:
@@ -664,49 +731,93 @@ class NewsTool:
         self.rss_feeds = RSS_FEEDS
         self.session = SESSION
 
+    def _parse_target_date(self, query: str) -> Optional[datetime]:
+        """
+        Detect if the query contains a specific date or relative time.
+        Returns a naive datetime object representing the target day.
+        """
+        if not query:
+            return None
+            
+        q = query.lower()
+        now = datetime.now(IST)
+        
+        # 1. Relative dates
+        if "yesterday" in q:
+            return now - timedelta(days=1)
+        if "today" in q:
+            return now
+            
+        # 2. Explicit Month/Day patterns (e.g., "8 April", "April 8")
+        months = [
+            "january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december",
+            "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"
+        ]
+        
+        # Pattern: [digit] [month] or [month] [digit]
+        for month in months:
+            if month in q:
+                # Try to find a digit near the month
+                match = re.search(r'(\d{1,2})', q)
+                if match:
+                    try:
+                        day = int(match.group(1))
+                        month_idx = (months.index(month) % 12) + 1
+                        # Assume current year if not specified
+                        year = now.year
+                        # If the user mentioned a year (e.g. 2026)
+                        year_match = re.search(r'(\d{4})', q)
+                        if year_match:
+                            year = int(year_match.group(1))
+                            
+                        return datetime(year, month_idx, day)
+                    except ValueError:
+                        continue
+        return None
+
     def fetch_latest_news(self, query: str = None, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        Fetch latest news from all RSS feeds synchronously.
-
-        Args:
-            query: Optional search term to filter articles by title/summary.
-            limit: Maximum number of articles to return (default 20).
-
-        Returns:
-            List of dicts with keys: source, title, summary, link, date.
+        ZERO-LATENCY News Retrieval from in-memory cache.
         """
-        all_items = []
+        # 1. Start with the full in-memory cache
+        deduplicated = list(news_storage)
 
-        for source_name, feed_url in self.rss_feeds.items():
-            items = fetch_single_feed(source_name, feed_url)
-            all_items.extend(items)
+        # 2. Target Date Detection
+        target_date = self._parse_target_date(query) if query else None
+        
+        # 3. Filter by Date if detected
+        if target_date:
+            filtered_by_date = []
+            for item in deduplicated:
+                pub_dt = item.get("published_datetime")
+                if pub_dt:
+                    pub_ist = pub_dt.astimezone(IST)
+                    if (pub_ist.year == target_date.year and 
+                        pub_ist.month == target_date.month and 
+                        pub_ist.day == target_date.day):
+                        filtered_by_date.append(item)
+            
+            if filtered_by_date:
+                deduplicated = filtered_by_date
 
-        # Deduplicate
-        seen = set()
-        deduplicated = []
-        for item in all_items:
-            url_hash = hash_url(item["link"])
-            if url_hash not in seen:
-                seen.add(url_hash)
-                deduplicated.append(item)
-
-        # Sort newest first
-        deduplicated.sort(
-            key=lambda x: x.get("published_datetime", datetime.min.replace(tzinfo=timezone.utc)),
-            reverse=True
-        )
-
-        # Filter by query if provided
+        # 4. Keyword Filtering (only if query isn't just a date)
         if query:
-            query_lower = query.lower()
-            deduplicated = [
-                item for item in deduplicated
-                if query_lower in item.get("title", "").lower()
-                or query_lower in item.get("summary", "").lower()
-                or query_lower in item.get("source", "").lower()
-            ]
+            q_lower = query.lower()
+            stop_words = ["yesterday", "today", "news", "important", "market", "india", "indian"]
+            keywords = [w for w in q_lower.split() if len(w) > 2 and w not in stop_words]
+            
+            if keywords:
+                keyword_results = []
+                for item in deduplicated:
+                    text = (item.get("title", "") + " " + item.get("summary", "")).lower()
+                    if any(kw in text for kw in keywords):
+                        keyword_results.append(item)
+                
+                if keyword_results:
+                    deduplicated = keyword_results
 
-        # Return limited, cleaned results
+        # 5. Return limited results
         results = []
         for item in deduplicated[:limit]:
             results.append({
@@ -716,6 +827,16 @@ class NewsTool:
                 "link": item["link"],
                 "date": item["date"]
             })
+
+        # 6. Final Fallback: If ZERO results and query provided, return top 5 current news
+        if not results and query and news_storage:
+            print(f"Warning: No match for '{query}'. Providing top cache instead.")
+            # Use Recursion-safe slice to avoid infinite loops
+            for item in list(news_storage)[:5]:
+                results.append({
+                    "source": item["source"], "title": item["title"],
+                    "summary": item["summary"], "link": item["link"], "date": item["date"]
+                })
 
         return results
 
