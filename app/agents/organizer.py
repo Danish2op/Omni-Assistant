@@ -10,7 +10,9 @@ class OrganizerAgent:
 
     def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
         # Action A: Intent Analysis
-        if pre_intent and pre_intent != "UNKNOWN":
+        # Ensure we only use pre_intent if it is a specific action. 
+        # If it is just the high-level "ORGANIZER", we must classify it into CREATE/LIST/UPDATE.
+        if pre_intent and pre_intent in ["CREATE", "LIST", "UPDATE"]:
             intent = pre_intent
         else:
             intent_prompt = (
