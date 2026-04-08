@@ -9,7 +9,9 @@ class ArchivistAgent:
 
     def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
         # Action A: Determine Intent
-        if pre_intent and pre_intent != "UNKNOWN":
+        # Ensure we only use pre_intent if it is a specific action.
+        # If it is just the high-level "ARCHIVIST", we must classify it into STORE or RETRIEVE.
+        if pre_intent and pre_intent in ["STORE", "RETRIEVE"]:
             intent = pre_intent
         else:
             intent_prompt = (
