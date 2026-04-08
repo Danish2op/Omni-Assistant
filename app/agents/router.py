@@ -2,26 +2,37 @@ import json
 from app.core.llm import GeminiClient
 
 
-ROUTER_SYSTEM_PROMPT = """You are the High-Precision Router for Omni-Assistant. Your mission is to eliminate routing failures by transforming user input into surgical technical intents.
+ROUTER_SYSTEM_PROMPT = """You are the High-Precision Router for Omni-Assistant. Your mission is to decompose user input into a sequence of technical execution steps.
 
 STRICT HIERARCHY OF INTENTS:
-1. ARCHIVIST: Any mention of "my", "I", "remember", "recall", "stored", "notes", or queries about personal goals and past events.
-2. ANALYST: Any mention of "news", "market", "stock", "price", "trend", "company", or financial analysis.
-3. ORGANIZER: Any mention of "schedule", "task", "remind", "calendar", "todo", or time-management.
-4. GENERAL: Only if NO other technical intent is detected. Basic greetings or generic meta-questions.
+1. ARCHIVIST: Personal memory retrieval/storage.
+2. ANALYST: Financial news, stock data, market analysis.
+3. ORGANIZER: Calendar, tasks, reminders.
+4. GENERAL: Basic greetings or generic meta-questions.
+
+MULTI-STEP ORCHESTRATION:
+If a user request requires multiple agents (e.g., "Check news AND THEN add a task"), you MUST return an array of tasks. 
+- Example: "Get 8 April news and set a task to buy best stocks" -> {"tasks": [{"intent": "ANALYST", "refined_query": "news 8 April 2026"}, {"intent": "ORGANIZER", "refined_query": "Add task based on news findings"}]}
+
+BACKWARD COMPATIBILITY:
+For simple queries, you may return a single task object outside an array for simplicity, but the "tasks" array format is preferred for consistency.
 
 FEW-SHOT DECISION MATRIX:
-- "What do I have to win?" -> {"intent": "ARCHIVIST", "refined_query": "Search knowledge base for goals, requirements, or criteria to win the hackathon", "reasoning": "User is asking about personal goals/stored info."}
-- "What is the price of BTC?" -> {"intent": "ANALYST", "refined_query": "Latest BTC price and market data", "reasoning": "Market data request."}
-- "Remind me to call Mom" -> {"intent": "ORGANIZER", "refined_query": "Create a task to call Mom", "reasoning": "Task creation request."}
-- "Who are you?" -> {"intent": "GENERAL", "refined_query": "explain system capabilities", "reasoning": "System identity query."}
+- "What do I have to win?" -> {"tasks": [{"intent": "ARCHIVIST", "refined_query": "Search knowledge base for goals, requirements, or criteria to win the hackathon"}]}
+- "Get today's news and add a reminder for the IPO" -> {"tasks": [{"intent": "ANALYST", "refined_query": "Indian Stock Market news today"}, {"intent": "ORGANIZER", "refined_query": "Add reminder for upcoming IPO"}]}
+- "Who are you?" -> {"tasks": [{"intent": "GENERAL", "refined_query": "explain system capabilities"}]}
 
 OUTPUT REQUIREMENT:
-You MUST output ONLY a valid JSON object in this exact format, with no additional text or markdown formatting:
+You MUST output ONLY a valid JSON object in this exact format:
 {
-  "intent": "CATEGORY", 
-  "refined_query": "An expanded search query optimized for the sub-agent's local tools", 
-  "reasoning": "short explanation"
+  "tasks": [
+    {
+      "intent": "CATEGORY", 
+      "refined_query": "optimized sub-query", 
+      "reasoning": "why this step?"
+    }
+  ],
+  "reasoning": "overall plan reasoning"
 }
 """
 
@@ -32,7 +43,7 @@ class RouterAgent:
 
     def route_request(self, user_input: str) -> dict:
         """
-        Classify the user's input into an intent category using a structured Decision Matrix.
+        Decompose the user's input into one or more execution tasks.
         """
         raw_response = self.llm.generate_response(
             prompt=user_input,
@@ -49,13 +60,25 @@ class RouterAgent:
 
         try:
             result = json.loads(cleaned)
-            # Support both processed_query and refined_query for backward/forward compatibility
-            if "refined_query" in result and "processed_query" not in result:
-                result["processed_query"] = result["refined_query"]
+            
+            # Handle backward compatibility: unify into 'tasks' list
+            if "tasks" not in result:
+                if "intent" in result:
+                    result["tasks"] = [{
+                        "intent": result["intent"],
+                        "refined_query": result.get("refined_query", result.get("processed_query", user_input)),
+                        "reasoning": result.get("reasoning", "")
+                    }]
+                else:
+                    raise ValueError("Malformed router output: No intent or tasks found.")
+            
             return result
-        except json.JSONDecodeError:
+        except Exception as e:
             return {
-                "intent": "UNKNOWN",
-                "reasoning": f"Failed to parse LLM response: {raw_response}",
-                "processed_query": user_input
+                "tasks": [{
+                    "intent": "UNKNOWN",
+                    "reasoning": f"Fail: {str(e)}",
+                    "refined_query": user_input
+                }],
+                "reasoning": "Fallback routing due to parsing error."
             }

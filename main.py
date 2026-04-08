@@ -18,7 +18,7 @@ app = FastAPI()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, we should specify the Vercel domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,73 +42,85 @@ class TaskUpdateRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "Omni-Assistant Online", "version": "1.0.0"}
-
-@app.get("/test-db")
-def test_db():
-    try:
-        response = db_client.get_data("knowledge_base", {"limit": 1})
-        return {"status": "Database Connected", "data": response}
-    except Exception as e:
-        return {"status": "Database Connection Failed", "error": str(e)}
-
-@app.patch("/tasks/update")
-def update_task_status(request: TaskUpdateRequest):
-    try:
-        db_client.update_data("tasks", {"id": request.task_id}, {"status": request.status})
-        return {"status": "Success", "message": f"Task {request.task_id} updated to {request.status}"}
-    except Exception as e:
-        return {"status": "Error", "error": str(e)}
+    return {"status": "Omni-Assistant Online", "version": "2.0.0"}
 
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
-        # Step 1: Route the request
-        result = router_agent.route_request(request.message)
-        intent = result.get("intent", "UNKNOWN")
-        processed_query = result.get("processed_query", request.message)
+        # Step 1: Decompose query into a sequence of tasks
+        route_result = router_agent.route_request(request.message)
+        tasks = route_result.get("tasks", [])
+        
+        execution_log = []
+        shared_context = ""
+        
+        # Step 2: Sequential Execution with Circuit Breaker
+        for task in tasks:
+            intent = task.get("intent")
+            refined_query = task.get("refined_query", request.message)
+            
+            # Prepare query (inject context if it's a chained task)
+            agent_query = refined_query
+            if shared_context:
+                agent_query = f"{refined_query}\n\n[CONTEXT FROM PREVIOUS STEP]: {shared_context}"
+            
+            try:
+                # Dispatch
+                if intent == "ANALYST":
+                    response = analyst_agent.handle_query(request.message, processed_query=agent_query)
+                elif intent == "ARCHIVIST":
+                    response = archivist_agent.handle_query(request.message, processed_query=agent_query)
+                elif intent == "ORGANIZER":
+                    response = organizer_agent.handle_query(request.message, processed_query=agent_query)
+                elif intent == "GENERAL":
+                    response = general_agent.handle_query(request.message, processed_query=agent_query)
+                else:
+                    raise ValueError(f"Unknown intent: {intent}")
 
-        # Step 2: Dispatch to the appropriate sub-agent
-        if intent == "ANALYST":
-            answer = analyst_agent.handle_query(request.message, processed_query=processed_query)
+                # Circuit Breaker: Check for obvious failures
+                if "error" in response.lower() or "couldn't find" in response.lower():
+                     return {
+                        "status": "Circuit Breaker Triggered",
+                        "intent": intent,
+                        "response": f"I encountered a problem during the {intent} phase: {response}. I've stopped the sequence to prevent incorrect actions."
+                    }
+
+                # Success: Store in log and update shared_context
+                execution_log.append({
+                    "intent": intent,
+                    "response": response
+                })
+                
+                # Summarize for next step (Context Summarization constraint)
+                shared_context = general_agent.summarize_context(response)
+
+            except Exception as e:
+                return {
+                    "status": "Failure",
+                    "intent": intent,
+                    "response": f"I encountered a technical error in the {intent} step: {str(e)}. Execution halted."
+                }
+
+        # Step 3: Final Synthesis (Unified Summary constraint)
+        if not execution_log:
+            return {"status": "No Tasks", "response": "I couldn't determine any actions to take."}
+            
+        if len(execution_log) == 1:
+            # Backward Compatibility: Return direct result if single-intent
             return {
                 "status": "Completed",
-                "intent": intent,
-                "reasoning": result.get("reasoning", ""),
-                "response": answer
-            }
-        elif intent == "ARCHIVIST":
-            answer = archivist_agent.handle_query(request.message, pre_intent=intent, processed_query=processed_query)
-            return {
-                "status": "Completed",
-                "intent": intent,
-                "reasoning": result.get("reasoning", ""),
-                "response": answer
-            }
-        elif intent == "ORGANIZER":
-            answer = organizer_agent.handle_query(request.message, pre_intent=intent, processed_query=processed_query)
-            return {
-                "status": "Completed",
-                "intent": intent,
-                "reasoning": result.get("reasoning", ""),
-                "response": answer
-            }
-        elif intent == "GENERAL":
-            answer = general_agent.handle_query(request.message, processed_query=processed_query)
-            return {
-                "status": "Completed",
-                "intent": intent,
-                "reasoning": result.get("reasoning", ""),
-                "response": answer
+                "intent": execution_log[0]["intent"],
+                "response": execution_log[0]["response"]
             }
         else:
+            # Multi-intent: Synthesize into one unified message
+            final_summary = general_agent.synthesize_final_response(request.message, execution_log)
             return {
-                "status": "Routed",
-                "intent": intent,
-                "reasoning": result.get("reasoning", ""),
-                "message": "Unknown intent. Could not route request."
+                "status": "Sequence Completed",
+                "intents": [t["intent"] for t in execution_log],
+                "response": final_summary,
+                "detail_log": execution_log
             }
 
     except Exception as e:
         return {"status": "Error", "error": str(e)}
-
