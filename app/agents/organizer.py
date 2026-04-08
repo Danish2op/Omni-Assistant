@@ -3,6 +3,15 @@ from datetime import datetime
 from app.core.database import SupabaseClient
 from app.core.llm import GeminiClient
 
+
+ORGANIZER_SYSTEM_PROMPT = """You are the Organizer for Omni-Assistant. 
+
+MISSION:
+- If [NEURAL_CONTEXT_FROM_PREVIOUS_STEP] is provided, you MUST extract any predicted sectors, stock tickers, or actionable advice and use it to populate the task details.
+- Be precise with dates and priorities.
+- Do NOT explain your logic. Just execute the action."""
+
+
 class OrganizerAgent:
     def __init__(self):
         self.db_client = SupabaseClient()
@@ -10,15 +19,14 @@ class OrganizerAgent:
 
     def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
         # Action A: Intent Analysis
-        # Ensure we only use pre_intent if it is a specific action. 
-        # If it is just the high-level "ORGANIZER", we must classify it into CREATE/LIST/UPDATE.
+        # Determine internal sub-intent
         if pre_intent and pre_intent in ["CREATE", "LIST", "UPDATE"]:
             intent = pre_intent
         else:
             intent_prompt = (
-                f"Analyze this user input: '{user_input}'. "
-                "Does the user want to CREATE a task, LIST/view tasks, or UPDATE/mark a task as done? "
-                "Respond with only 'CREATE', 'LIST', or 'UPDATE'."
+                f"Analyze this query: '{processed_query if processed_query else user_input}'. "
+                "Does it involve CREATING a new task, LISTING existing tasks, or UPDATING a task? "
+                "Respond with ONLY 'CREATE', 'LIST', or 'UPDATE'."
             )
             intent_response = self.llm.generate_response(prompt=intent_prompt)
             intent = intent_response.strip().upper()
@@ -29,82 +37,55 @@ class OrganizerAgent:
         # Action B: Execution
         if "CREATE" in intent:
             extract_prompt = (
-                f"Extract task details from this message: '{effective_query}'. "
-                f"The current reference time is {current_time}. "
-                "Format as JSON with exactly three keys: 'task_name' (string), 'due_date' (ISO timestamp string including time if mentioned, or null if unmentioned), and 'priority' (string: 'high', 'medium', or 'low'). "
-                "If only a date is mentioned without time, default to 09:00:00 for that date."
+                f"Reference Time: {current_time}\n"
+                f"Query & Context: {effective_query}\n\n"
+                "INSTRUCTION: Extract task details into JSON with keys: 'task_name', 'due_date' (ISO), 'priority'. "
+                "If the context mentions a specific sector or stock to invest in, put that in the 'task_name'."
             )
             extract_response = self.llm.generate_response(
                 prompt=extract_prompt, 
-                system_instruction="Respond with ONLY valid JSON. No markdown formatting."
+                system_instruction="Provide ONLY valid JSON. No markdown."
             )
+            
             try:
-                clean_raw = extract_response.replace('```json', '').replace('```', '').strip()
-                data = json.loads(clean_raw)
+                # Cleaning for robustness
+                cleaned = extract_response.strip().replace('```json', '').replace('```', '')
+                data = json.loads(cleaned)
                 
-                task_name = data.get("task_name")
-                if not task_name:
-                    task_name = user_input
-                due_date = data.get("due_date") 
-                priority = data.get("priority", "medium")
-
                 insert_data = {
-                    "task_name": task_name,
-                    "priority": priority,
-                    "status": "pending"
+                    "task_name": data.get("task_name", user_input),
+                    "priority": data.get("priority", "medium"),
+                    "status": "pending",
+                    "due_date": data.get("due_date")
                 }
-                if due_date:
-                    insert_data["due_date"] = due_date
-                    
+                
                 self.db_client.save_data('tasks', insert_data)
-                return "I've added that to your tasks schedule."
+                return f"Successfully added task: {insert_data['task_name']}"
             except Exception:
-                return "Failed to parse task details, but I see you want to create a task."
+                # Fallback on parse failure
+                self.db_client.save_data('tasks', {"task_name": user_input, "status": "pending"})
+                return "Task added to your board."
                 
         elif "LIST" in intent:
-            query_filter = {"limit": 100} 
-            records = self.db_client.get_data('tasks', query_filter)
-            
-            synth_prompt = (
-                f"You are the Organizer for the Omni-Agent. Format the user's task list.\n"
-                f"User Request: {effective_query}\n"
-                f"Task Records:\n{json.dumps(records, default=str)}\n\n"
-                "INSTRUCTIONS:\n"
-                "1. Return a clean, simple bulleted list of tasks.\n"
-                "2. FORMAT: - **[Task Name]** | Due: [Date and Time] | Status: [Status] | Priority: [Priority]\n"
-                "3. If using a table, ensure property markdown row spacing (new lines between rows).\n"
-                "4. Use strikethrough ~~task~~ for completed items.\n"
-                "5. Ensure the output is professional and easy to scan."
-            )
+            records = self.db_client.get_data('tasks', {"limit": 100})
+            synth_prompt = f"User Request: {user_input}\nRecords: {json.dumps(records, default=str)}"
             return self.llm.generate_response(
                 prompt=synth_prompt, 
-                system_instruction="You are the Organizer agent. Output EXACTLY the requested format. No fluff."
+                system_instruction="List the tasks beautifully and concisely. Use strikethrough for completed ones."
             )
 
         elif "UPDATE" in intent:
-            # Find task ID to update
+            # Find and mark pending task as completed
             records = self.db_client.get_data('tasks', {"status": "pending"})
-            
-            find_prompt = (
-                f"The user wants to update a task status to completed based on this message: '{effective_query}'.\n"
-                f"Here are the current pending tasks:\n{json.dumps(records, default=str)}\n\n"
-                f"Identify the ID of the task they completed. Format as JSON with key 'task_id'. Return null if none match."
-            )
-            find_response = self.llm.generate_response(
-                prompt=find_prompt, 
-                system_instruction="Respond with ONLY valid JSON. No markdown formatting."
-            )
+            find_prompt = f"Tasks: {json.dumps(records, default=str)}\nRequest: {user_input}\nReturn only the task_id to complete in JSON: {{'task_id': '...'}}"
+            find_res = self.llm.generate_response(prompt=find_prompt, system_instruction="Output ONLY JSON.")
             try:
-                clean_raw = find_response.replace('```json', '').replace('```', '').strip()
-                data = json.loads(clean_raw)
-                target_id = data.get("task_id")
-                
-                if target_id:
-                    self.db_client.update_data("tasks", {"id": target_id}, {"status": "completed"})
-                    return "I've marked that task as completed."
-                else:
-                    return "I couldn't find a matching pending task to update."
-            except Exception:
-                return "Failed to identify a specific task to update."
-        
-        return "I could not determine if you wanted to CREATE, LIST, or UPDATE your tasks."
+                tid = json.loads(find_res.strip().replace('```json', '').replace('```', '')).get('task_id')
+                if tid:
+                    self.db_client.update_data("tasks", {"id": tid}, {"status": "completed"})
+                    return "Task marked as completed."
+            except:
+                pass
+            return "I couldn't identify a specific pending task to update."
+
+        return "I'm not sure if you want to create, list, or update tasks."
