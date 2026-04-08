@@ -6,15 +6,30 @@ from app.core.database import SupabaseClient
 from app.agents.router import RouterAgent
 from app.agents.analyst import AnalystAgent
 from app.agents.archivist import ArchivistAgent
+from app.agents.organizer import OrganizerAgent
+from app.agents.general import GeneralAgent
+from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, we should specify the Vercel domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 db_client = SupabaseClient()
 router_agent = RouterAgent()
 analyst_agent = AnalystAgent()
 archivist_agent = ArchivistAgent()
+organizer_agent = OrganizerAgent()
+general_agent = GeneralAgent()
 
 
 class ChatRequest(BaseModel):
@@ -58,11 +73,20 @@ def chat(request: ChatRequest):
                 "response": answer
             }
         elif intent == "ORGANIZER":
+            answer = organizer_agent.handle_query(request.message)
             return {
-                "status": "Routed",
+                "status": "Completed",
                 "intent": intent,
                 "reasoning": result.get("reasoning", ""),
-                "message": "Organizer agent not yet implemented."
+                "response": answer
+            }
+        elif intent == "GENERAL":
+            answer = general_agent.handle_query(request.message)
+            return {
+                "status": "Completed",
+                "intent": intent,
+                "reasoning": result.get("reasoning", ""),
+                "response": answer
             }
         else:
             return {
@@ -71,6 +95,7 @@ def chat(request: ChatRequest):
                 "reasoning": result.get("reasoning", ""),
                 "message": "Unknown intent. Could not route request."
             }
+
     except Exception as e:
         return {"status": "Error", "error": str(e)}
 

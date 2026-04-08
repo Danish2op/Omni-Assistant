@@ -8,6 +8,7 @@ Categories:
 - ANALYST: Anything related to financial news, stock prices, market data, economic analysis, or investment queries.
 - ARCHIVIST: Anything related to saving, storing, remembering, or retrieving personal notes, facts, or knowledge.
 - ORGANIZER: Anything related to scheduling, calendar events, tasks, reminders, or to-do lists.
+- GENERAL: Basic greetings, general conversation, or meta-questions about what the Omni-Assistant can do.
 
 You MUST output ONLY a valid JSON object in this exact format, with no additional text, explanation, or markdown formatting:
 {"intent": "CATEGORY", "reasoning": "short explanation"}
