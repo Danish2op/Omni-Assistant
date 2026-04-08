@@ -2,26 +2,27 @@ import json
 from app.core.llm import GeminiClient
 
 
-ROUTER_SYSTEM_PROMPT = """You are the Router for Omni-Assistant. Your ONLY job is to classify user input into one of three categories.
+ROUTER_SYSTEM_PROMPT = """You are the High-Precision Router for Omni-Assistant. Your mission is to eliminate routing failures by transforming user input into surgical technical intents.
 
-Categories:
-- ANALYST: Anything related to financial news, stock prices, market data, economic analysis, or investment queries.
-- ARCHIVIST: Anything related to saving, storing, remembering, or retrieving personal notes, facts, or knowledge.
-- ORGANIZER: Anything related to scheduling, calendar events, tasks, reminders, or to-do lists. Examples: "Schedule X", "Remind me to Y", "List my tasks".
-- GENERAL: Greetings (Hello, hi, good morning), general conversation, or meta-questions about what the Omni-Assistant can do. If it's not a specific request for data or tasks, it's GENERAL.
+STRICT HIERARCHY OF INTENTS:
+1. ARCHIVIST: Any mention of "my", "I", "remember", "recall", "stored", "notes", or queries about personal goals and past events.
+2. ANALYST: Any mention of "news", "market", "stock", "price", "trend", "company", or financial analysis.
+3. ORGANIZER: Any mention of "schedule", "task", "remind", "calendar", "todo", or time-management.
+4. GENERAL: Only if NO other technical intent is detected. Basic greetings or generic meta-questions.
 
-You MUST output ONLY a valid JSON object in this exact format, with no additional text, explanation, or markdown formatting:
-{"intent": "CATEGORY", "processed_query": "The actual search query or task description stripped of intent keywords", "reasoning": "short explanation"}
+FEW-SHOT DECISION MATRIX:
+- "What do I have to win?" -> {"intent": "ARCHIVIST", "refined_query": "Search knowledge base for goals, requirements, or criteria to win the hackathon", "reasoning": "User is asking about personal goals/stored info."}
+- "What is the price of BTC?" -> {"intent": "ANALYST", "refined_query": "Latest BTC price and market data", "reasoning": "Market data request."}
+- "Remind me to call Mom" -> {"intent": "ORGANIZER", "refined_query": "Create a task to call Mom", "reasoning": "Task creation request."}
+- "Who are you?" -> {"intent": "GENERAL", "refined_query": "explain system capabilities", "reasoning": "System identity query."}
 
-Examples:
-User: "What is the price of Nvidia?"
-Output: {"intent": "ANALYST", "processed_query": "Nvidia stock price", "reasoning": "User is asking about stock price which is financial market data."}
-
-User: "Remember that my dog's name is Max."
-Output: {"intent": "ARCHIVIST", "processed_query": "dog's name is Max", "reasoning": "User wants to save a personal fact for later retrieval."}
-
-User: "Schedule a meeting for tomorrow."
-Output: {"intent": "ORGANIZER", "processed_query": "Schedule a meeting for tomorrow", "reasoning": "User wants to schedule a calendar event."}
+OUTPUT REQUIREMENT:
+You MUST output ONLY a valid JSON object in this exact format, with no additional text or markdown formatting:
+{
+  "intent": "CATEGORY", 
+  "refined_query": "An expanded search query optimized for the sub-agent's local tools", 
+  "reasoning": "short explanation"
+}
 """
 
 
@@ -31,13 +32,7 @@ class RouterAgent:
 
     def route_request(self, user_input: str) -> dict:
         """
-        Classify the user's input into an intent category using Gemini.
-
-        Args:
-            user_input: The raw text message from the user.
-
-        Returns:
-            A dict with 'intent' and 'reasoning' keys.
+        Classify the user's input into an intent category using a structured Decision Matrix.
         """
         raw_response = self.llm.generate_response(
             prompt=user_input,
@@ -47,7 +42,6 @@ class RouterAgent:
         # Clean the response — strip markdown code fences if present
         cleaned = raw_response.strip()
         if cleaned.startswith("```"):
-            # Remove opening ```json or ``` line
             cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
         if cleaned.endswith("```"):
             cleaned = cleaned[:-3]
@@ -55,9 +49,13 @@ class RouterAgent:
 
         try:
             result = json.loads(cleaned)
+            # Support both processed_query and refined_query for backward/forward compatibility
+            if "refined_query" in result and "processed_query" not in result:
+                result["processed_query"] = result["refined_query"]
             return result
         except json.JSONDecodeError:
             return {
                 "intent": "UNKNOWN",
-                "reasoning": f"Failed to parse LLM response: {raw_response}"
+                "reasoning": f"Failed to parse LLM response: {raw_response}",
+                "processed_query": user_input
             }

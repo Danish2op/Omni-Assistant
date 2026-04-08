@@ -2,15 +2,26 @@ import json
 from app.core.database import SupabaseClient
 from app.core.llm import GeminiClient
 
+ARCHIVIST_SYSTEM_PROMPT = """You are the Archivist for the Omni-Agent Neural Hub. You have retrieved the following data from the user's memory: [DATA]. 
+
+MISSION:
+- If the data contains the direct answer to the user's question, you MUST use it as the primary source.
+- Do NOT explain your capabilities, three functional pillars, or agent architecture.
+- Be surgical, direct, and factual.
+- If NO data is found in the provided records that matches the query, say: 'I couldn't find that in your records.'—do NOT hallucinate or provide a general/generic answer.
+
+FORMAT:
+- Direct answer first.
+- If multiple relevant records exist, use a concise bulleted list."""
+
+
 class ArchivistAgent:
     def __init__(self):
         self.db_client = SupabaseClient()
         self.llm = GeminiClient()
 
     def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
-        # Action A: Determine Intent
-        # Ensure we only use pre_intent if it is a specific action.
-        # If it is just the high-level "ARCHIVIST", we must classify it into STORE or RETRIEVE.
+        # Step 1: Specific Action Classification (STORE vs RETRIEVE)
         if pre_intent and pre_intent in ["STORE", "RETRIEVE"]:
             intent = pre_intent
         else:
@@ -48,43 +59,22 @@ class ArchivistAgent:
                 "category": category,
                 "content": content
             })
-            return "I've noted that down in your knowledge base."
+            return "Knowledge archived. I've noted that down for you."
             
         elif "RETRIEVE" in intent:
-            keyword_prompt = (
-                f"Extract a search_keyword from this message: '{effective_query}'. "
-                "Format as JSON with key 'search_keyword'."
-            )
-            keyword_response = self.llm.generate_response(
-                prompt=keyword_prompt, 
-                system_instruction="Respond with ONLY valid JSON. No markdown formatting."
-            )
-            
-            try:
-                clean_raw = keyword_response.replace('```json', '').replace('```', '').strip()
-                data = json.loads(clean_raw)
-                search_keyword = data.get("search_keyword", "")
-            except Exception:
-                search_keyword = ""
-
-            # Fetch the latest items safely. since eq() is rigid, we grab records and let LLM synthesize.
+            # Forced Retrieval Loop
             query_filter = {"limit": 100} 
             records = self.db_client.get_data('knowledge_base', query_filter)
             
-            synth_prompt = (
-                f"You are the Archivist of the Omni-Agent knowledge base.\n"
-                f"Your mission: Provide a natural, insightful answer based ONLY on the User Query and the Knowledge Records provided below.\n\n"
+            # Synthesis Phase with Strict Data-First Constraint
+            synthesis_prompt = (
                 f"USER QUERY: {effective_query}\n"
-                f"KNOWLEDGE RECORDS:\n{json.dumps(records, default=str)}\n\n"
-                "RULES:\n"
-                "1. If the user asks 'What do you have in my knowledge base?', 'What do you remember?', or similar, you MUST list and summarize ALL relevant records.\n"
-                "2. DO NOT describe your 'three functional pillars', internal mechanisms, or agent architecture.\n"
-                "3. If information is missing, state it clearly but check if any partial matches exist.\n"
-                "4. Be professional, concise, and direct."
+                f"RETRIVED KNOWLEDGE RECORDS: {json.dumps(records, default=str)}\n"
             )
+            
             return self.llm.generate_response(
-                prompt=synth_prompt, 
-                system_instruction="You are the Archivist agent. Summarize user data with high accuracy. Do not talk about yourself."
+                prompt=synthesis_prompt, 
+                system_instruction=ARCHIVIST_SYSTEM_PROMPT
             )
         
-        return "I could not determine if you wanted to STORE or RETRIEVE information."
+        return "I couldn't identify if you wanted to store or retrieve that information from your memory bank."

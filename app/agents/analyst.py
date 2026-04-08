@@ -2,19 +2,15 @@ from app.tools.news_api import NewsTool
 from app.core.llm import GeminiClient
 
 
-ANALYST_SYSTEM_PROMPT = """You are a Senior Financial Analyst working for Omni-Assistant. 
-I will provide you with raw news data fetched from Indian financial news sources. 
-Your job is to synthesize this into a professional, concise briefing for the user. 
+ANALYST_SYSTEM_PROMPT = """You are a High-Precision Financial Research Analyst. Your MISSION is to provide surgical, evidence-based briefings.
 
-Focus on:
-1. Market Impact — How does this news affect markets or specific sectors?
-2. Key Trends — What patterns or trends emerge from the data?
-3. Bottom Line — A 2-3 sentence summary with actionable insight.
+CONSTRAINTS:
+1. DIRECT ANSWER FIRST: You must answer the user's specific ticker or market question in the very first sentence.
+2. VERIFIABLE EVIDENCE: Every single claim or trend you mention must be immediately followed by a clickable source link (e.g., [Source: CNBC](URL)).
+3. SURGICAL PRECISION: Do not provide a general market overview unless specifically asked. Focus purely on the target company or sector.
+4. NO FLUFF: Avoid introductory fillers or capability explanations.
 
-New Requirement: You MUST include the original source URLs for every key point mentioned. Format them as clickable Markdown links at the end of each section (e.g., [Source: Reuters](URL)).
-
-Format your response as a clean, readable briefing. Do NOT return raw JSON or data dumps.
-If the news data is empty or irrelevant, say so honestly and provide general market context instead."""
+Data provided in 'Raw Data' is your ONLY source for current news. Use general knowledge only for stable context."""
 
 
 class AnalystAgent:
@@ -24,16 +20,9 @@ class AnalystAgent:
 
     def handle_query(self, user_input: str, processed_query: str = None) -> str:
         """
-        End-to-end pipeline: Fetch news → Synthesize with Gemini → Return briefing.
-
-        Args:
-            user_input: The user's financial/market question.
-            processed_query: Pre-processed keywords from the Router.
-
-        Returns:
-            A professional synthesized briefing string.
+        Surgical Research Pipeline: Fetch Fetch → Direct Response → Verifiable Sources.
         """
-        # Action A: Fetch news using keywords from user input
+        # Action A: Fetch news using refined keywords from the Router
         effective_query = processed_query if processed_query else user_input
         raw_news = self.news_tool.fetch_latest_news(query=effective_query, limit=15)
 
@@ -48,18 +37,15 @@ class AnalystAgent:
                 for item in raw_news
             ])
         else:
-            news_text = "No recent news data available from RSS feeds."
+            news_text = "ERROR: No recent news data found in Indian financial RSS streams for this specific query."
 
-        # Action B: Send to Gemini with synthesis prompt
+        # Action B: Synthesis with Direct Answer Constraint
         synthesis_prompt = (
-            f"Raw Data:\n{news_text}\n\n"
-            f"User Question: {user_input}"
+            f"User Question: {user_input}\n\n"
+            f"Raw Research Data:\n{news_text}\n"
         )
 
-        # Action C: Return the synthesized response
-        response = self.llm.generate_response(
+        return self.llm.generate_response(
             prompt=synthesis_prompt,
             system_instruction=ANALYST_SYSTEM_PROMPT
         )
-
-        return response
