@@ -42,6 +42,29 @@ class SupabaseClient:
             print(f"Supabase Update Error: {e}")
             return None
 
+    def search_data(self, table_name: str, column: str, keywords: list, limit: int = 50):
+        """
+        Search a table column for rows matching ANY of the given keywords using ilike.
+        Returns matching rows, or an empty list if nothing matches.
+        """
+        try:
+            if not keywords:
+                return self.get_data(table_name, {"limit": limit})
+
+            # Build OR filter: column.ilike.%keyword1%,column.ilike.%keyword2%
+            or_clauses = ",".join([f"{column}.ilike.%{kw}%" for kw in keywords])
+            response = (
+                self.client.table(table_name)
+                .select("*")
+                .or_(or_clauses)
+                .limit(limit)
+                .execute()
+            )
+            return response.data if response.data else []
+        except Exception as e:
+            print(f"Supabase Search Error: {e}")
+            return []
+
     def delete_data(self, table_name: str, query_filter: dict):
         try:
             query = self.client.table(table_name).delete()

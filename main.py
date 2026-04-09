@@ -18,20 +18,12 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Startup and Shutdown logic for the Neural Hub.
-    """
-    # Startup: Initialize News Cache
+    """Startup and Shutdown logic for the Neural Hub."""
     print("Neural Hub: Starting background tasks...")
     scheduler.add_job(update_news_cache, 'interval', seconds=60)
     scheduler.start()
-    
-    # Run first update immediately to prime the cache
     await update_news_cache()
-    
     yield
-    
-    # Shutdown
     print("Neural Hub: Shutting down scheduler...")
     scheduler.shutdown()
 
@@ -60,72 +52,83 @@ class ChatRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "Omni-Assistant Online", "version": "2.2.0-ULTRA-RESILIENT"}
+    return {"status": "Omni-Assistant Online", "version": "3.0.0-COGNITIVE"}
 
 @app.post("/chat")
 def chat(request: ChatRequest):
     """
-    Bulletproof Chat Orchestrator. 
-    Always returns 200 OK with helpful diagnostic info if a sub-system fails.
+    Cognitive Orchestrator with action-aware dispatch and graceful error recovery.
     """
     try:
-        # Step 1: Decompose query into a sequence of tasks
+        # Step 1: Router generates an Execution Plan
         route_result = router_agent.route_request(request.message)
         tasks = route_result.get("tasks", [])
         
         execution_log = []
         shared_context = ""
         
-        # Step 2: Sequential Execution with Circuit Breaker
+        # Step 2: Sequential Execution
         for i, task in enumerate(tasks):
             intent = task.get("intent", "GENERAL")
+            action = task.get("action", "CHAT")
+            keywords = task.get("keywords", [])
             refined_query = task.get("refined_query", request.message)
             
-            # Prepare query with injected context
+            # CLARIFY handler: respond immediately without dispatching
+            if action == "CLARIFY":
+                return {
+                    "status": "Completed",
+                    "intent": "GENERAL",
+                    "response": "I need a bit more context to help you. Could you rephrase your request or be more specific about what you'd like me to do?"
+                }
+            
+            # Prepare query with injected context from previous step
             agent_query = refined_query
             if shared_context:
-                agent_query = f"{refined_query}\n\n[NEURAL_CONTEXT_FROM_PREVIOUS_STEP]: {shared_context}"
+                agent_query = f"{refined_query}\n\n[CONTEXT_FROM_PREVIOUS_STEP]: {shared_context}"
             
             try:
-                # Dispatching with explicit error capturing per agent
                 response = ""
                 if intent == "ANALYST":
                     response = analyst_agent.handle_query(request.message, processed_query=agent_query)
                 elif intent == "ARCHIVIST":
-                    response = archivist_agent.handle_query(request.message, processed_query=agent_query)
+                    response = archivist_agent.handle_query(
+                        request.message, action=action, keywords=keywords, processed_query=agent_query
+                    )
                 elif intent == "ORGANIZER":
-                    # Pass the known sub-intent (CREATE/LIST/UPDATE) if available
-                    response = organizer_agent.handle_query(request.message, pre_intent=intent, processed_query=agent_query)
+                    response = organizer_agent.handle_query(
+                        request.message, action=action, keywords=keywords, processed_query=agent_query
+                    )
                 else:
                     response = general_agent.handle_query(request.message, processed_query=agent_query)
 
-                # Defense: Ensure response is a valid string
-                response = response if response else "Neural Core: Empty response received."
-
-                # Circuit Breaker: If we get a hard failure string from an agent
-                if "error" in response.lower() and i == 0 and len(tasks) > 1:
-                     return {
-                        "status": "Resilient_Stop",
-                        "intent": intent,
-                        "response": f"Sequence Halted: The {intent} step encountered a block. Details: {response}"
-                    }
+                # Defense: Ensure response is never None/empty
+                response = response if response else "I processed your request but didn't get a clear result."
 
                 execution_log.append({"intent": intent, "response": response})
                 
-                # OPTIMIZATION: Chain Collapse. Pass raw response to next agent directly.
+                # Pass context to next step
                 if i < len(tasks) - 1:
-                    shared_context = response[:2000] # Truncate to avoid token bloat
+                    shared_context = response[:2000]
 
             except Exception as agent_err:
-                print(f"Agent Execution Failure: {traceback.format_exc()}")
+                # Log the real error server-side
+                print(f"Agent Execution Failure ({intent}): {traceback.format_exc()}")
+                # Return user-friendly message — no technical details
+                agent_names = {
+                    "ANALYST": "News & Markets",
+                    "ARCHIVIST": "Memory",
+                    "ORGANIZER": "Task Manager",
+                    "GENERAL": "General Assistant"
+                }
+                friendly_name = agent_names.get(intent, intent)
                 return {
-                    "status": "Agent_Failure",
+                    "status": "Completed",
                     "intent": intent,
-                    "response": f"Neural Core: The {intent} module had a logic exception. Execution halted.",
-                    "debug_info": str(agent_err)
+                    "response": f"I encountered a technical glitch while accessing the {friendly_name}. I'm still online — could you try rephrasing that or asking something else?"
                 }
 
-        # Step 3: Final Response Synthesis
+        # Step 3: Final Response
         if not execution_log:
             return {"status": "Completed", "response": "I processed your request but no actions were taken."}
             
@@ -140,7 +143,7 @@ def chat(request: ChatRequest):
             return {
                 "status": "Completed",
                 "intent": "ORCHESTRATOR",
-                "response": final_summary
+                "response": final_summary if final_summary else "I completed multiple steps but couldn't synthesize a final summary."
             }
 
     except Exception as global_err:
@@ -148,5 +151,6 @@ def chat(request: ChatRequest):
         return {
             "status": "Completed",
             "intent": "SYSTEM_FAILSAFE",
-            "response": f"Omni-Assistant is currently in survival mode. Error: {str(global_err)}"
+            "response": "I encountered an unexpected issue. I'm still online — could you try again or rephrase your request?"
         }
+

@@ -1,41 +1,83 @@
-INFO:     Started server process [67340]
+INFO:     Started server process [71955]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 Neural Hub: Starting background tasks...
-[2026-04-09 11:00:28.952127] Neural Hub: Refreshing news cache...
-✓ Fetched 15 items from Hindu BusinessLine Stock Markets
+[2026-04-09 12:26:24.872546] Neural Hub: Refreshing news cache...
 ✓ Fetched 15 items from GoodReturns Money
-✓ Fetched 15 items from Moneycontrol Business
-✓ Fetched 15 items from Moneycontrol Special Picks
-✓ Fetched 15 items from Moneycontrol Commodities
 ✓ Fetched 15 items from GoodReturns IPO
 ✓ Fetched 15 items from Hindu BusinessLine Markets
-✓ Fetched 15 items from Moneycontrol Market Reports
-✗ HTTP error fetching Business Standard Finance: 403
-✓ Fetched 15 items from Moneycontrol Mutual Funds
-✗ HTTP error fetching Business Standard Markets: 403
-✓ Fetched 15 items from Moneycontrol Top News
-✓ Fetched 15 items from Live Mint Money
-✓ Fetched 15 items from Hindu BusinessLine Economy
-✓ Fetched 15 items from Moneycontrol Latest News
-✓ Fetched 15 items from Hindu BusinessLine Companies
-✓ Fetched 15 items from Economic Times Markets
-✓ Fetched 15 items from Economic Times Industry
-✓ Fetched 15 items from Moneycontrol Technology
-✓ Fetched 15 items from Moneycontrol Buzzing Stocks
-✓ Fetched 0 items from Economic Times Wealth
-✓ Fetched 15 items from Rediff Money
 ✓ Fetched 0 items from Business Today Markets
-✓ Fetched 15 items from CNBC Personal Finance
-✓ Fetched 15 items from CNBC Business News
+✓ Fetched 15 items from Moneycontrol Mutual Funds
+✓ Fetched 15 items from Live Mint Markets
+✓ Fetched 15 items from Hindu BusinessLine Stock Markets
+✓ Fetched 15 items from Live Mint Money
+✓ Fetched 15 items from Moneycontrol Technology
+✓ Fetched 15 items from Moneycontrol Market Reports
+✓ Fetched 15 items from Moneycontrol Business
+✓ Fetched 15 items from Economic Times Markets
+✓ Fetched 15 items from Moneycontrol Special Picks
+✗ HTTP error fetching Business Standard Finance: 403
+✓ Fetched 15 items from Hindu BusinessLine Companies
+✓ Fetched 15 items from Hindu BusinessLine Economy
+✓ Fetched 15 items from Economic Times Industry
 ✓ Fetched 0 items from Economic Times Mutual Funds
-✓ Fetched 15 items from CNBC Market News
-✓ Fetched 15 items from NDTV Profit
+✓ Fetched 15 items from Moneycontrol Buzzing Stocks
+✓ Fetched 15 items from Moneycontrol Top News
+✓ Fetched 15 items from Moneycontrol Latest News
+✗ HTTP error fetching Business Standard Markets: 403
+✓ Fetched 0 items from Economic Times Wealth
+✓ Fetched 15 items from CNBC Business News
+✓ Fetched 15 items from Moneycontrol Commodities
+✓ Fetched 0 items from Financial Express Markets
 ✓ Fetched 0 items from Financial Express Economy
 ✓ Fetched 0 items from Financial Express Industry
-✓ Fetched 0 items from Financial Express Markets
+✓ Fetched 15 items from CNBC Market News
+✓ Fetched 15 items from CNBC Personal Finance
+✓ Fetched 15 items from NDTV Profit
+✓ Fetched 15 items from Rediff Money
+✓ Neural Hub: Cache updated. 344 new articles added. Total: 200
+Quota/Availability limit on models/gemini-2.5-flash, trying next model...
+Quota/Availability limit on models/gemini-2.5-flash, trying next model...
+INFO:     127.0.0.1:58805 - "POST /chat HTTP/1.1" 200 OK
+Quota/Availability limit on models/gemini-2.5-flash, trying next model...
+INFO:     127.0.0.1:58817 - "POST /chat HTTP/1.1" 200 OK
+Quota/Availability limit on models/gemini-2.5-flash, trying next model...
+INFO:     127.0.0.1:58827 - "POST /chat HTTP/1.1" 200 OK
+[2026-04-09 12:27:24.877433] Neural Hub: Refreshing news cache...
+✓ Fetched 15 items from Hindu BusinessLine Markets
+✓ Fetched 15 items from Hindu BusinessLine Stock Markets
+✓ Fetched 15 items from Rediff Money
+✗ HTTP error fetching Business Standard Finance: 403
+✓ Fetched 15 items from Economic Times Markets
+✗ HTTP error fetching Business Standard Markets: 403
+✓ Fetched 0 items from Economic Times Wealth
+✓ Fetched 15 items from Economic Times Industry
+✓ Fetched 15 items from Moneycontrol Buzzing Stocks
+✓ Fetched 0 items from Economic Times Mutual Funds
+✓ Fetched 15 items from Moneycontrol Business
+✓ Fetched 0 items from Financial Express Economy
+✓ Fetched 15 items from Hindu BusinessLine Companies
+✓ Fetched 15 items from Moneycontrol Technology
+✓ Fetched 15 items from GoodReturns Money
+✓ Fetched 15 items from GoodReturns IPO
+✓ Fetched 15 items from Moneycontrol Top News
+✓ Fetched 15 items from Moneycontrol Latest News
+✓ Fetched 15 items from Moneycontrol Mutual Funds
+✓ Fetched 15 items from Hindu BusinessLine Economy
+✓ Fetched 15 items from Live Mint Money
 ✓ Fetched 15 items from Live Mint Markets
-✓ Neural Hub: Cache updated. 343 new articles added. Total: 200
-Gemini API Error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
-INFO:     127.0.0.1:56416 - "POST /chat HTTP/1.1" 200 OK
+✓ Fetched 0 items from Business Today Markets
+✓ Fetched 0 items from Financial Express Markets
+✓ Fetched 15 items from Moneycontrol Commodities
+✓ Fetched 15 items from Moneycontrol Special Picks
+✓ Fetched 15 items from NDTV Profit
+✓ Fetched 15 items from CNBC Business News
+✓ Fetched 15 items from CNBC Personal Finance
+✓ Fetched 15 items from CNBC Market News
+✓ Fetched 0 items from Financial Express Industry
+✓ Fetched 15 items from Moneycontrol Market Reports
+✓ Neural Hub: Cache updated. 11 new articles added. Total: 200
+Quota/Availability limit on models/gemini-2.5-flash, trying next model...
+Quota/Availability limit on models/gemini-2.5-flash, trying next model...
+INFO:     127.0.0.1:58859 - "POST /chat HTTP/1.1" 200 OK

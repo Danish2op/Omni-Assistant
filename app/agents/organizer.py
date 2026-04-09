@@ -17,22 +17,26 @@ class OrganizerAgent:
         self.db_client = SupabaseClient()
         self.llm = GeminiClient()
 
-    def handle_query(self, user_input: str, pre_intent: str = None, processed_query: str = None) -> str:
+    def handle_query(self, user_input: str, action: str = None, keywords: list = None, processed_query: str = None) -> str:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         effective_query = processed_query if processed_query else user_input
+        keywords = keywords or []
 
-        # Action: Consolidated Intent & Extraction
-        # If pre_intent is provided, we skip "asking" the LLM what to do
-        intent = pre_intent if pre_intent in ["CREATE", "LIST", "UPDATE"] else None
-        
-        if not intent:
-            # Fallback if Router didn't specify sub-intent
-            intent_prompt = f"Analyze: '{effective_query}'. Is this CREATE, LIST, or UPDATE? Return ONLY the word."
-            res = self.llm.generate_response(prompt=intent_prompt)
-            intent = res.strip().upper() if res else "CREATE"
+        # Use Router's action directly — no secondary LLM call needed
+        if not action or action not in ("CREATE", "LIST", "FILTER", "UPDATE"):
+            # Fallback: infer from keywords in the query itself
+            q_lower = effective_query.lower()
+            if any(w in q_lower for w in ["add", "create", "remind", "schedule"]):
+                action = "CREATE"
+            elif any(w in q_lower for w in ["update", "complete", "mark", "done", "finish"]):
+                action = "UPDATE"
+            elif any(w in q_lower for w in ["related to", "about", "filter", "search"]):
+                action = "FILTER"
+            else:
+                action = "LIST"
 
-        if "CREATE" in intent:
-            # Single-call extraction
+        # ---- CREATE ----
+        if action == "CREATE":
             extract_prompt = (
                 f"Reference Time: {current_time}\n"
                 f"Query/Context: {effective_query}\n\n"
@@ -48,6 +52,10 @@ class OrganizerAgent:
                 if not extract_response:
                     raise ValueError("Empty extraction response")
                 cleaned = extract_response.strip().replace('```json', '').replace('```', '')
+                start = cleaned.find('{')
+                end = cleaned.rfind('}')
+                if start != -1 and end != -1:
+                    cleaned = cleaned[start:end+1]
                 data = json.loads(cleaned)
                 insert_data = {
                     "task_name": data.get("task_name", user_input),
@@ -61,32 +69,87 @@ class OrganizerAgent:
                 print(f"Organizer Extract Error: {e}")
                 self.db_client.save_data('tasks', {"task_name": user_input, "status": "pending"})
                 return "Task added to dashboard."
+
+        # ---- FILTER ----
+        elif action == "FILTER":
+            return self._filter_tasks(keywords, user_input)
                 
-        elif "LIST" in intent:
+        # ---- LIST ----
+        elif action == "LIST":
             records = self.db_client.get_data('tasks', {"limit": 100})
             if not records:
-                return "You have no pending tasks today."
+                return "You have no pending tasks right now."
             synth_prompt = f"Records: {json.dumps(records, default=str)}\nRequest: {user_input}"
-            return self.llm.generate_response(
+            response = self.llm.generate_response(
                 prompt=synth_prompt, 
-                system_instruction="List tasks beautifully. Use strikethrough for completed."
+                system_instruction="List tasks clearly. Use strikethrough for completed. Be concise."
             )
+            return response if response else "You have tasks, but I couldn't format them right now."
 
-        elif "UPDATE" in intent:
+        # ---- UPDATE ----
+        elif action == "UPDATE":
             records = self.db_client.get_data('tasks', {"status": "pending"})
             if not records:
                 return "No pending tasks to update."
-            find_prompt = f"Tasks: {json.dumps(records, default=str)}\nRequest: {user_input}\nReturn task_id to complete. JSON: {'task_id': '...'}"
+            find_prompt = (
+                f"Tasks: {json.dumps(records, default=str)}\n"
+                f"Request: {user_input}\n"
+                "Return the task_id to complete as JSON: {\"task_id\": \"...\"}"
+            )
             find_res = self.llm.generate_response(prompt=find_prompt, system_instruction="Output ONLY JSON.")
             try:
                 if not find_res:
                     raise ValueError("Empty find response")
-                tid = json.loads(find_res.strip().replace('```json', '').replace('```', '')).get('task_id')
+                cleaned = find_res.strip().replace('```json', '').replace('```', '')
+                start = cleaned.find('{')
+                end = cleaned.rfind('}')
+                if start != -1 and end != -1:
+                    cleaned = cleaned[start:end+1]
+                tid = json.loads(cleaned).get('task_id')
                 if tid:
                     self.db_client.update_data("tasks", {"id": tid}, {"status": "completed"})
                     return "Task marked as completed."
-            except:
-                pass
+            except Exception as e:
+                print(f"Organizer Update Error: {e}")
             return "I couldn't identify a pending task to update."
 
-        return "I'm not sure how to organize that. Can you please rephrase your request? or breake it in 2-3 queries"
+        return "I wasn't able to process that organizer request. Could you rephrase?"
+
+    def _filter_tasks(self, keywords: list, user_input: str) -> str:
+        """Filter tasks by keywords using database-level search."""
+        if not keywords:
+            # Extract keywords from the query as a fallback
+            extract_prompt = (
+                f"Extract search keywords from this query: '{user_input}'. "
+                "Return ONLY a JSON array of strings, e.g. [\"stocks\", \"market\"]. No explanation."
+            )
+            kw_response = self.llm.generate_response(prompt=extract_prompt)
+            try:
+                cleaned = kw_response.strip().replace('```json', '').replace('```', '')
+                keywords = json.loads(cleaned)
+                if not isinstance(keywords, list):
+                    keywords = []
+            except Exception:
+                keywords = []
+
+        if not keywords:
+            # Can't filter without keywords, fall back to full list
+            records = self.db_client.get_data('tasks', {"limit": 100})
+        else:
+            records = self.db_client.search_data('tasks', 'task_name', keywords)
+
+        if not records:
+            kw_str = ", ".join(keywords) if keywords else "that topic"
+            return f"I checked your tasks, but none of them are related to {kw_str}."
+
+        synth_prompt = (
+            f"Filtered Records: {json.dumps(records, default=str)}\n"
+            f"User Query: {user_input}\n"
+            f"Filter Keywords: {keywords}"
+        )
+        response = self.llm.generate_response(
+            prompt=synth_prompt,
+            system_instruction="Present ONLY the filtered tasks that match the keywords. Be concise and direct."
+        )
+        return response if response else f"Found {len(records)} tasks matching your filter, but couldn't format them."
+
