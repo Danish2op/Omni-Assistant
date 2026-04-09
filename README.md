@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="https://omni-4h01vgsik-danishs-projects-64849313.vercel.app">
+    <img src="https://img.shields.io/badge/Live%20Demo-Visit%20App-00d4ff?style=for-the-badge&logo=vercel" alt="Live Demo" />
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/version-3.0.0--COGNITIVE-blueviolet?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/backend-FastAPI-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
   <img src="https://img.shields.io/badge/frontend-Next.js%2016-black?style=for-the-badge&logo=next.js" alt="Next.js" />
