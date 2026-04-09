@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="[https://omni-4h01vgsik-danishs-projects-64849313.vercel.app](https://omni-jet-six.vercel.app)">
+  <a href="https://omni-jet-six.vercel.app">
     <img src="https://img.shields.io/badge/Live%20Demo-Visit%20App-00d4ff?style=for-the-badge&logo=vercel" alt="Live Demo" />
   </a>
 </p>
