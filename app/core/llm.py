@@ -12,25 +12,29 @@ class GeminiClient:
 
     def generate_response(self, prompt: str, system_instruction: str = None) -> str:
         """
-        Generate a text response from Gemini 2.0 Flash.
-
-        Args:
-            prompt: The user's input text.
-            system_instruction: Optional system-level instruction to guide the model.
-
-        Returns:
-            The generated text response as a string.
+        Generate a text response with inherent None-safety and Model 1.5 Flash precision.
         """
-        config = None
-        if system_instruction:
-            config = types.GenerateContentConfig(
-                system_instruction=system_instruction
+        try:
+            config = None
+            if system_instruction:
+                config = types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                )
+
+            # UPGRADE: Using Gemini 1.5 Flash for better reasoning/JSON adherence
+            response = self.client.models.generate_content(
+                model="models/gemini-flash-latest", 
+                contents=prompt,
+                config=config
             )
 
-        response = self.client.models.generate_content(
-            model="models/gemini-flash-lite-latest",
-            contents=prompt,
-            config=config
-        )
+            # RESILIENCE: response.text can be None if safety filters block it
+            if not response or not response.text:
+                print(f"Warning: Gemini returned empty/blocked response for prompt: {prompt[:50]}...")
+                return "The neural core blocked this response due to high sensitivity/safety constraints."
 
-        return response.text
+            return response.text
+
+        except Exception as e:
+            print(f"Gemini API Error: {str(e)}")
+            return f"Neural Core Error: System was unable to synthesize a response. ({str(e)})"

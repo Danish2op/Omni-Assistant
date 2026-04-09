@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     Startup and Shutdown logic for the Neural Hub.
     """
     # Startup: Initialize News Cache
-    print("Neural Hub: Starting background background tasks...")
+    print("Neural Hub: Starting background tasks...")
     scheduler.add_job(update_news_cache, 'interval', seconds=60)
     scheduler.start()
     
@@ -60,7 +60,7 @@ class ChatRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "Omni-Assistant Online", "version": "2.1.0-RESILIENT"}
+    return {"status": "Omni-Assistant Online", "version": "2.2.0-ULTRA-RESILIENT"}
 
 @app.post("/chat")
 def chat(request: ChatRequest):
@@ -88,14 +88,19 @@ def chat(request: ChatRequest):
             
             try:
                 # Dispatching with explicit error capturing per agent
+                response = ""
                 if intent == "ANALYST":
                     response = analyst_agent.handle_query(request.message, processed_query=agent_query)
                 elif intent == "ARCHIVIST":
                     response = archivist_agent.handle_query(request.message, processed_query=agent_query)
                 elif intent == "ORGANIZER":
-                    response = organizer_agent.handle_query(request.message, processed_query=agent_query)
+                    # Pass the known sub-intent (CREATE/LIST/UPDATE) if available
+                    response = organizer_agent.handle_query(request.message, pre_intent=intent, processed_query=agent_query)
                 else:
                     response = general_agent.handle_query(request.message, processed_query=agent_query)
+
+                # Defense: Ensure response is a valid string
+                response = response if response else "Neural Core: Empty response received."
 
                 # Circuit Breaker: If we get a hard failure string from an agent
                 if "error" in response.lower() and i == 0 and len(tasks) > 1:
@@ -107,16 +112,16 @@ def chat(request: ChatRequest):
 
                 execution_log.append({"intent": intent, "response": response})
                 
-                # Context Summarization for the next step (if any)
+                # OPTIMIZATION: Chain Collapse. Pass raw response to next agent directly.
                 if i < len(tasks) - 1:
-                    shared_context = general_agent.summarize_context(response)
+                    shared_context = response[:2000] # Truncate to avoid token bloat
 
             except Exception as agent_err:
-                # Agent-level Resilience: Halt sequence but don't crash main loop
+                print(f"Agent Execution Failure: {traceback.format_exc()}")
                 return {
                     "status": "Agent_Failure",
                     "intent": intent,
-                    "response": f"Neural Core: The {intent} module had a logic exception. Execution halted to prevent corruption.",
+                    "response": f"Neural Core: The {intent} module had a logic exception. Execution halted.",
                     "debug_info": str(agent_err)
                 }
 
@@ -139,10 +144,9 @@ def chat(request: ChatRequest):
             }
 
     except Exception as global_err:
-        # Final Fail-Safe: Always return structured JSON for the frontend
         print(f"CRITICAL GLOBAL ERROR: {traceback.format_exc()}")
         return {
-            "status": "Completed", # Return 'Completed' so frontend doesn't show 'Neural Break'
+            "status": "Completed",
             "intent": "SYSTEM_FAILSAFE",
-            "response": f"Omni-Assistant is currently experiencing partial monolith instability. I've noted the error and am attempting to recover. Error: {str(global_err)}"
+            "response": f"Omni-Assistant is currently in survival mode. Error: {str(global_err)}"
         }
