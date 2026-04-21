@@ -10,3 +10,4 @@ slowapi
 apscheduler
 requests
 python-dateutil
+ddgs

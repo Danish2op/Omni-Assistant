@@ -54,6 +54,39 @@ class ChatRequest(BaseModel):
 def health_check():
     return {"status": "Omni-Assistant Online", "version": "3.0.0-COGNITIVE"}
 
+@app.get("/api/briefing")
+def get_briefing():
+    """
+    Daily Briefing Backend Engine
+    Gather pending tasks and top news, synthesize a short morning briefing.
+    """
+    fallback = "Welcome to Omni-Assistant. All systems are operational."
+    try:
+        # Get pending tasks
+        tasks = db_client.client.table("tasks").select("*").eq("status", "pending").execute().data or []
+        tasks_text = "\n".join([f"- {t.get('title', 'Unknown Task')}" for t in tasks]) if tasks else "No pending tasks."
+
+        # Get top 3 news items
+        from app.tools.news_api import NewsTool
+        news_items = NewsTool().fetch_latest_news(limit=3)
+        news_text = "\n".join([f"- {n.get('title', '')}: {n.get('summary', '')}" for n in news_items]) if news_items else "No current news."
+
+        # Synthesize using Gemini
+        from app.core.llm import GeminiClient
+        prompt = (
+            f"Here are the user's current pending tasks:\n{tasks_text}\n\n"
+            f"Here are the top news headlines right now:\n{news_text}\n\n"
+            "Synthesize a 2-3 sentence morning briefing connecting these active tasks to the current news if explicitly relevant. Do not hallucinate."
+        )
+        briefing = GeminiClient().generate_response(prompt=prompt, system_instruction="You are a helpful and concise AI assistant.")
+        if not briefing:
+            return {"briefing": fallback}
+        return {"briefing": briefing}
+
+    except Exception as e:
+        print(f"Briefing Endpoint Error: {e}")
+        return {"briefing": fallback}
+
 @app.post("/chat")
 def chat(request: ChatRequest):
     """

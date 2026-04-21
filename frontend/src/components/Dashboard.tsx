@@ -73,6 +73,9 @@ export default function Dashboard() {
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [briefing, setBriefing] = useState<string | null>(null);
+  const [isBriefingLoading, setIsBriefingLoading] = useState(true);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial Fetch & Connection Health
@@ -86,6 +89,23 @@ export default function Dashboard() {
       intent: 'SYSTEM'
     }]);
   }, []);
+
+  useEffect(() => {
+    const fetchBriefing = async () => {
+      setIsBriefingLoading(true);
+      try {
+        const response = await axios.get(`${API_URL}/api/briefing`);
+        setBriefing(response.data.briefing);
+      } catch (error) {
+        console.error("Failed to fetch briefing:", error);
+        setBriefing("Welcome to Omni-Assistant. All systems are operational.");
+      } finally {
+        setIsBriefingLoading(false);
+      }
+    };
+    fetchBriefing();
+  }, []);
+
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -303,6 +323,28 @@ export default function Dashboard() {
         </motion.header>
 
         {/* Message Terminal Area */}
+
+          {/* Briefing Panel */}
+          <div className="mb-6">
+            <div className="glass-panel bg-surface/50 border border-accent/20 rounded-sm p-4 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-accent/50 to-transparent" />
+              <h3 className="text-accent text-[10px] font-bold uppercase tracking-[3px] mb-2 font-syne flex items-center gap-2">
+                <Activity className="w-3 h-3" />
+                Morning Briefing
+              </h3>
+              {isBriefingLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+                  <span className="text-[11px] text-foreground/50 font-mono">Synthesizing intelligence...</span>
+                </div>
+              ) : (
+                <p className="text-[12px] text-foreground/80 leading-relaxed font-inter">
+                  {briefing}
+                </p>
+              )}
+            </div>
+          </div>
+
         <div 
           ref={scrollRef}
           className="flex-1 overflow-y-auto space-y-8 px-12 py-10 hide-scrollbar"
