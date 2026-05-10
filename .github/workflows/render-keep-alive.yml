@@ -1,0 +1,16 @@
+name: Render Keep-Alive Ping
+
+on:
+  schedule:
+    # Every 14 minutes — prevents Render free tier from sleeping
+    - cron: '*/14 * * * *'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render V2 API
+        run: |
+          echo "Pinging Render to prevent cold start..."
+          curl -sf --max-time 30 "${{ secrets.RENDER_V2_HEALTH_URL }}" || echo "Ping failed (server may be deploying)"
