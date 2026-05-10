@@ -56,11 +56,14 @@ class ArchivistAgent:
                 category = "note"
                 content = user_input
                 
-            self.db_client.save_data('knowledge_base', {
+            result = self.db_client.save_data('knowledge_base', {
                 "category": category,
                 "content": content
             })
-            return "Knowledge archived. I've noted that down for you."
+            if result:
+                return "Knowledge archived. I've noted that down for you."
+            else:
+                return "I tried to save that to memory, but the database connection failed. Please try again later."
             
         # ---- RETRIEVE ----
         elif action == "RETRIEVE":

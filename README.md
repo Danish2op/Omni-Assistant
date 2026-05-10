@@ -238,7 +238,7 @@ The `render.yaml` is pre-configured. Connect your GitHub repo and set environmen
 
 | Variable | Value |
 |----------|-------|
-| `GOOGLE_API_KEY` | Your Gemini API key |
+| `OPENROUTER_API_KEY` | Your OpenRouter API key |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_KEY` | Your Supabase anon key |
 

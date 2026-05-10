@@ -9,7 +9,7 @@ STRICT OUTPUT RULE: You MUST output ONLY a valid JSON object. No markdown, no pr
 INTENT + ACTION VOCABULARY:
 - ORGANIZER: Actions = CREATE, LIST, FILTER, UPDATE
 - ARCHIVIST: Actions = STORE, RETRIEVE
-- ANALYST: Actions = RESEARCH
+- ANALYST: Actions = RESEARCH (Financial OR General Web Search)
 - GENERAL: Actions = CHAT, CLARIFY
 
 WHEN TO USE EACH ACTION:
@@ -19,7 +19,7 @@ WHEN TO USE EACH ACTION:
 - ORGANIZER/UPDATE: "mark X as done", "complete task X"
 - ARCHIVIST/STORE: "remember that", "note that", "save this"
 - ARCHIVIST/RETRIEVE: "what do I remember about", "recall", "what did I save"
-- ANALYST/RESEARCH: "news", "market", "stocks", "financial"
+- ANALYST/RESEARCH: "news", "market", "stocks", "financial", "who is", "what happened with", "latest on", "search the web"
 - GENERAL/CLARIFY: vague/ambiguous input like "tell me more", "ok", "continue", "yes"
 - GENERAL/CHAT: greetings, meta-questions about the system
 
@@ -55,6 +55,9 @@ User: "Remember that my favorite stock is Reliance"
 
 User: "Check my news for today and tell me if any of it relates to my existing tasks."
 {"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": [], "refined_query": "Fetch latest financial news for today"}, {"intent": "ORGANIZER", "action": "LIST", "keywords": [], "refined_query": "List all tasks and compare with news findings"}], "reasoning": "Multi-step: fetch news then cross-reference with tasks"}
+
+User: "What is the latest update on SpaceX's Starship?"
+{"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": ["SpaceX", "Starship", "update"], "refined_query": "Search for the latest update on SpaceX's Starship"}], "reasoning": "User wants to search the web for general information"}
 
 User: "Tell me more."
 {"tasks": [{"intent": "GENERAL", "action": "CLARIFY", "keywords": [], "refined_query": "Ask user for clarification"}], "reasoning": "Ambiguous input, need clarification"}

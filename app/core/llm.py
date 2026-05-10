@@ -1,63 +1,96 @@
 import os
-from google import genai
-from google.genai import types
+import requests
 
 
-# Ordered by capability. If one is quota-exhausted, try the next.
+# Ordered by capability. Fallback on rate-limit/unavailable errors.
 MODEL_FALLBACK_CHAIN = [
-    "models/gemini-2.5-flash",
-    "models/gemini-2.5-flash-lite",
-    "models/gemini-2.0-flash",
-    "models/gemini-2.0-flash-lite",
+    "google/gemma-4-26b-a4b-it",
+    "google/gemini-2.0-flash-001",
 ]
+
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 class GeminiClient:
+    """
+    LLM client using OpenRouter API with model fallback chain.
+    Name kept as GeminiClient to avoid breaking all agent imports.
+    """
+
     def __init__(self):
-        api_key = os.environ.get("GOOGLE_API_KEY")
+        api_key = os.environ.get("OPENROUTER_API_KEY")
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment variables.")
-        self.client = genai.Client(api_key=api_key)
+            raise ValueError("OPENROUTER_API_KEY not found in environment variables.")
+        self.api_key = api_key
 
     def generate_response(self, prompt: str, system_instruction: str = None) -> str:
         """
-        Generate a text response with automatic model fallback on quota exhaustion.
+        Generate text response via OpenRouter with automatic model fallback.
         Tries each model in MODEL_FALLBACK_CHAIN until one succeeds.
         """
-        config = None
+        messages = []
         if system_instruction:
-            config = types.GenerateContentConfig(
-                system_instruction=system_instruction
-            )
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://omni-agent.app",
+            "X-Title": "Omni-Agent Neural Hub",
+        }
 
         last_error = None
         for model_id in MODEL_FALLBACK_CHAIN:
             try:
-                response = self.client.models.generate_content(
-                    model=model_id, 
-                    contents=prompt,
-                    config=config
+                payload = {
+                    "model": model_id,
+                    "messages": messages,
+                    "max_tokens": 2048,
+                    "temperature": 0.7,
+                }
+
+                response = requests.post(
+                    OPENROUTER_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=30,
                 )
 
-                if not response or not response.text:
-                    print(f"Warning: {model_id} returned empty/blocked response for: {prompt[:50]}...")
+                if response.status_code == 429 or response.status_code == 503:
+                    print(f"Rate-limit/unavailable on {model_id}, trying next...")
+                    last_error = f"HTTP {response.status_code}"
+                    continue
+
+                if response.status_code != 200:
+                    error_msg = response.text[:200]
+                    print(f"OpenRouter error ({model_id}): {response.status_code} - {error_msg}")
+                    return f"Neural Core Error: API returned {response.status_code}."
+
+                data = response.json()
+
+                # Extract text from OpenAI-compatible response
+                choices = data.get("choices", [])
+                if not choices:
+                    print(f"Warning: {model_id} returned empty choices for: {prompt[:50]}...")
+                    return "The neural core returned an empty response."
+
+                text = choices[0].get("message", {}).get("content", "")
+                if not text:
                     return "The neural core blocked this response due to safety constraints."
 
-                return response.text
+                return text
 
+            except requests.exceptions.Timeout:
+                print(f"Timeout on {model_id}, trying next...")
+                last_error = "Timeout"
+                continue
             except Exception as e:
                 last_error = e
                 error_str = str(e)
-                # Only fallback on quota/availability errors, not on other failures
-                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "503" in error_str or "UNAVAILABLE" in error_str:
-                    print(f"Quota/Availability limit on {model_id}, trying next model...")
-                    continue
-                else:
-                    # Non-quota error — don't retry, return immediately
-                    print(f"Gemini API Error ({model_id}): {error_str}")
-                    return f"Neural Core Error: System was unable to synthesize a response. ({error_str})"
+                print(f"OpenRouter API Error ({model_id}): {error_str}")
+                return f"Neural Core Error: {error_str}"
 
         # All models exhausted
         print(f"All models exhausted. Last error: {last_error}")
         return "Neural Core: All available models are currently at capacity. Please try again in a few minutes."
-

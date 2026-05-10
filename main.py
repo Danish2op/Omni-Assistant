@@ -54,6 +54,86 @@ class ChatRequest(BaseModel):
 def health_check():
     return {"status": "Omni-Assistant Online", "version": "3.0.0-COGNITIVE"}
 
+
+# ---- DATA ENDPOINTS (Frontend reads through these, NOT direct Supabase) ----
+
+class TaskUpdateRequest(BaseModel):
+    task_id: str
+    status: str
+
+
+@app.get("/tasks")
+def list_tasks():
+    """Return all tasks ordered by status and due_date."""
+    try:
+        records = db_client.get_data('tasks', {"limit": 200})
+        # Sort: pending first, then by due_date
+        if records:
+            records.sort(key=lambda t: (
+                0 if t.get('status') == 'pending' else 1,
+                t.get('due_date') or '9999-12-31'
+            ))
+        return {"tasks": records or []}
+    except Exception as e:
+        print(f"Tasks List Error: {e}")
+        return {"tasks": [], "error": str(e)}
+
+
+@app.get("/knowledge")
+def list_knowledge():
+    """Return all knowledge base entries, newest first."""
+    try:
+        records = db_client.get_data('knowledge_base', {"limit": 200})
+        if records:
+            records.sort(key=lambda k: k.get('created_at', ''), reverse=True)
+        return {"knowledge": records or []}
+    except Exception as e:
+        print(f"Knowledge List Error: {e}")
+        return {"knowledge": [], "error": str(e)}
+
+
+@app.patch("/tasks/update")
+def update_task_status(request: TaskUpdateRequest):
+    """Toggle a task's status between pending/completed."""
+    try:
+        result = db_client.update_data(
+            "tasks",
+            {"id": request.task_id},
+            {"status": request.status}
+        )
+        if result:
+            return {"status": "success", "updated": result}
+        else:
+            return {"status": "error", "message": "Task not found or database unavailable."}
+    except Exception as e:
+        print(f"Task Update Error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/briefing")
+def get_briefing():
+    """Return a lightweight daily briefing with task counts and recent knowledge."""
+    try:
+        tasks = db_client.get_data('tasks', {"limit": 200}) or []
+        knowledge = db_client.get_data('knowledge_base', {"limit": 5}) or []
+
+        pending = [t for t in tasks if t.get('status') == 'pending']
+        completed = [t for t in tasks if t.get('status') == 'completed']
+
+        return {
+            "status": "success",
+            "briefing": {
+                "total_tasks": len(tasks),
+                "pending_tasks": len(pending),
+                "completed_tasks": len(completed),
+                "upcoming": pending[:5],
+                "recent_knowledge": knowledge[:5],
+            }
+        }
+    except Exception as e:
+        print(f"Briefing Error: {e}")
+        return {"status": "error", "briefing": None, "message": str(e)}
+
 @app.post("/chat")
 def chat(request: ChatRequest):
     """

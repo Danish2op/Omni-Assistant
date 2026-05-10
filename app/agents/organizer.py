@@ -63,12 +63,18 @@ class OrganizerAgent:
                     "status": "pending",
                     "due_date": data.get("due_date")
                 }
-                self.db_client.save_data('tasks', insert_data)
-                return f"Successfully added task: {insert_data['task_name']}"
+                result = self.db_client.save_data('tasks', insert_data)
+                if result:
+                    return f"Successfully added task: {insert_data['task_name']}"
+                else:
+                    return "I prepared the task but the database connection failed. Please try again later."
             except Exception as e:
                 print(f"Organizer Extract Error: {e}")
-                self.db_client.save_data('tasks', {"task_name": user_input, "status": "pending"})
-                return "Task added to dashboard."
+                result = self.db_client.save_data('tasks', {"task_name": user_input, "status": "pending"})
+                if result:
+                    return "Task added to dashboard."
+                else:
+                    return "I couldn't save the task due to a database issue. Please try again later."
 
         # ---- FILTER ----
         elif action == "FILTER":

@@ -5,3 +5,4 @@ __pycache__/
 env/
 Task*.md
 uvicorn.log
+.pdfenv/

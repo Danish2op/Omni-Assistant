@@ -3,10 +3,10 @@ uvicorn
 python-dotenv
 pydantic
 supabase
-google-genai
+requests
 feedparser
 beautifulsoup4
 slowapi
 apscheduler
-requests
 python-dateutil
+duckduckgo-search

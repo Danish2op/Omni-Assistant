@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -106,25 +105,19 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     setIsRefreshing(true);
-    console.log("Neural Core: Fetching sidebar data...");
+    console.log("Neural Core: Fetching sidebar data via backend API...");
     try {
-      const { data: taskData, error: taskError } = await supabase
-        .from('tasks')
-        .select('*')
-        .order('status', { ascending: false }) // pending first
-        .order('due_date', { ascending: true });
-      
-      const { data: kbData, error: kbError } = await supabase
-        .from('knowledge_base')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [tasksRes, knowledgeRes] = await Promise.all([
+        axios.get(`${API_URL}/tasks`),
+        axios.get(`${API_URL}/knowledge`)
+      ]);
 
-      if (taskError) throw taskError;
-      if (kbError) throw kbError;
+      const taskData = tasksRes.data?.tasks || [];
+      const kbData = knowledgeRes.data?.knowledge || [];
 
-      console.log(`Neural Core: Sync complete. Tasks=${taskData?.length}, KB=${kbData?.length}`);
-      setTasks(taskData || []);
-      setKnowledge(kbData || []);
+      console.log(`Neural Core: Sync complete. Tasks=${taskData.length}, KB=${kbData.length}`);
+      setTasks(taskData);
+      setKnowledge(kbData);
     } catch (error) {
       console.error('Core Logic Failure during data fetch:', error);
     } finally {
