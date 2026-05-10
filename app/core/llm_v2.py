@@ -32,12 +32,12 @@ MODEL_REGISTRY = {
     AgentRole.CODER: [
         "qwen/qwen3-coder:free",
         "qwen/qwen-2.5-coder-32b-instruct:free",
-        "deepseek/deepseek-coder-33b-instruct:free",
+        "google/gemini-2.0-flash-001",
     ],
     AgentRole.RESEARCHER: [
         "deepseek/deepseek-r1:free",
         "qwen/qwq-32b:free",
-        "google/gemma-4-26b-a4b-it:free",
+        "google/gemini-2.0-flash-001",
     ],
     AgentRole.GENERALIST: [
         "meta-llama/llama-3.3-70b-instruct:free",
