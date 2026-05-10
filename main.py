@@ -50,6 +50,14 @@ class ChatRequest(BaseModel):
     message: str
 
 
+@app.get("/")
+def root():
+    return {
+        "status": "Omni-Assistant Online",
+        "version": "3.0.0-COGNITIVE",
+        "endpoints": ["/health", "/chat", "/tasks", "/knowledge", "/api/briefing"]
+    }
+
 @app.get("/health")
 def health_check():
     return {"status": "Omni-Assistant Online", "version": "3.0.0-COGNITIVE"}
