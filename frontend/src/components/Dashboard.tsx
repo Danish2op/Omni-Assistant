@@ -48,11 +48,11 @@ export default function Dashboard() {
     try {
       const [tasksRes, knowledgeRes] = await Promise.all([
         axios.get(`${API_URL}/tasks`),
-        axios.get(`${API_URL}/knowledge`)
+        axios.get(`${API_URL}/v2/memories`)
       ]);
 
       const taskData = tasksRes.data?.tasks || [];
-      const kbData = knowledgeRes.data?.knowledge || [];
+      const kbData = knowledgeRes.data?.memories || [];
 
       console.log(`Neural Core: Sync complete. Tasks=${taskData.length}, KB=${kbData.length}`);
       setTasks(taskData);
@@ -188,7 +188,7 @@ export default function Dashboard() {
                 </div>
                 <p className="text-[11px] leading-relaxed text-foreground/70 group-hover:text-foreground transition-colors mb-3 font-inter">{item.content}</p>
                 <div className="flex items-center justify-between text-[8px] font-mono text-foreground/30 uppercase">
-                  <span className="bg-white/5 px-1.5 py-0.5 rounded-sm">{item.category || 'DATA'}</span>
+                  <span className="bg-white/5 px-1.5 py-0.5 rounded-sm">{item.metadata?.category || item.category || 'DATA'}</span>
                   <span>{mounted ? new Date(item.created_at).toLocaleDateString() : 'LOADING...'}</span>
                 </div>
               </motion.div>

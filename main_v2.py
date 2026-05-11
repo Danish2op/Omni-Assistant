@@ -312,47 +312,68 @@ def chat_stream(request: ChatRequest):
                 yield "data: [DONE]\n\n"
                 return
 
-            task = tasks[0]
-            intent = task.get("intent", "GENERAL")
-            action = task.get("action", "CHAT")
-            refined_query = task.get("refined_query", request.message)
-            keywords = task.get("keywords", [])
+            execution_log = []
+            shared_context = ""
 
-            if action == "CLARIFY":
-                intent = "GENERAL"
+            for i, task in enumerate(tasks):
+                intent = task.get("intent", "GENERAL")
+                action = task.get("action", "CHAT")
+                refined_query = task.get("refined_query", request.message)
+                keywords = task.get("keywords", [])
 
-            yield _sse_event("ROUTER", intent=intent)
+                if action == "CLARIFY":
+                    intent = "GENERAL"
 
-            # Step 2: Agent dispatch
-            agent_names = {
-                "ANALYST": "Research & News",
-                "ARCHIVIST": "Memory",
-                "ORGANIZER": "Task Manager",
-                "CODER": "Code Assistant",
-                "RESEARCHER": "Deep Research",
-                "GENERAL": "General Assistant",
-            }
-            yield _sse_event("AGENT", name=agent_names.get(intent, intent))
+                yield _sse_event("ROUTER", intent=intent)
 
-            # Step 3: Stream or non-stream based on agent
-            if intent in ("CODER", "RESEARCHER"):
-                # These support token streaming
-                sys_prompt = CODER_SYSTEM_PROMPT if intent == "CODER" else RESEARCHER_SYSTEM_PROMPT
-                role = AgentRole.CODER if intent == "CODER" else AgentRole.RESEARCHER
+                # Step 2: Agent dispatch
+                agent_names = {
+                    "ANALYST": "Research & News",
+                    "ARCHIVIST": "Memory",
+                    "ORGANIZER": "Task Manager",
+                    "CODER": "Code Assistant",
+                    "RESEARCHER": "Deep Research",
+                    "GENERAL": "General Assistant",
+                }
+                yield _sse_event("AGENT", name=agent_names.get(intent, intent))
 
-                for chunk in coder_llm.generate_stream(
-                    prompt=refined_query,
-                    system_instruction=sys_prompt,
-                    role=role,
-                    max_tokens=4096,
-                    temperature=0.4 if intent == "CODER" else 0.6,
-                ):
-                    yield _sse_event("TEXT", content=chunk)
-            else:
-                # Non-streamable agents — get full response, emit as one TEXT
-                response = _dispatch_agent(intent, action, keywords, request.message, refined_query)
-                response = response or "Processed but no clear result."
-                yield _sse_event("TEXT", content=response)
+                # Inject context from previous step
+                agent_query = refined_query
+                if shared_context:
+                    agent_query = f"{refined_query}\n\n[CONTEXT_FROM_PREVIOUS_STEP]: {shared_context}"
+
+                # Step 3: Stream or non-stream based on agent
+                if intent in ("CODER", "RESEARCHER"):
+                    # These support token streaming
+                    sys_prompt = CODER_SYSTEM_PROMPT if intent == "CODER" else RESEARCHER_SYSTEM_PROMPT
+                    role = AgentRole.CODER if intent == "CODER" else AgentRole.RESEARCHER
+
+                    full_streamed_response = ""
+                    for chunk in coder_llm.generate_stream(
+                        prompt=agent_query,
+                        system_instruction=sys_prompt,
+                        role=role,
+                        max_tokens=4096,
+                        temperature=0.4 if intent == "CODER" else 0.6,
+                    ):
+                        full_streamed_response += chunk
+                        yield _sse_event("TEXT", content=chunk)
+                    
+                    execution_log.append({"intent": intent, "response": full_streamed_response})
+                    if i < len(tasks) - 1:
+                        shared_context = full_streamed_response[:2000]
+                        yield _sse_event("TEXT", content="\n\n---\n\n")
+
+                else:
+                    # Non-streamable agents — get full response, emit as one TEXT
+                    response = _dispatch_agent(intent, action, keywords, request.message, agent_query)
+                    response = response or "Processed but no clear result."
+                    execution_log.append({"intent": intent, "response": response})
+                    if i < len(tasks) - 1:
+                        shared_context = response[:2000]
+                        yield _sse_event("TEXT", content=response + "\n\n---\n\n")
+                    else:
+                        yield _sse_event("TEXT", content=response)
 
             yield "data: [DONE]\n\n"
 
