@@ -10,3 +10,4 @@ slowapi
 apscheduler
 python-dateutil
 duckduckgo-search
+tavily-python
