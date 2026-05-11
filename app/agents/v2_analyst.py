@@ -6,7 +6,7 @@ Same tool integrations as V1 (NewsTool + WebSearchTool).
 """
 
 from app.tools.news_api import NewsTool
-from app.tools.web_search import WebSearchTool
+from app.tools.tavily_search import TavilySearchTool
 from app.core.llm_v2 import MultiModelClient, AgentRole
 
 
@@ -25,7 +25,7 @@ Data in 'Raw Research Data' is your ONLY source for current facts."""
 class V2AnalystAgent:
     def __init__(self):
         self.news_tool = NewsTool()
-        self.web_search_tool = WebSearchTool()
+        self.web_search_tool = TavilySearchTool()
         self.llm = MultiModelClient()
 
     def handle_query(self, user_input: str, processed_query: str = None) -> str:

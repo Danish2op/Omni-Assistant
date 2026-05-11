@@ -51,22 +51,31 @@ INTENT + ACTION VOCABULARY:
 ROUTING RULES:
 - Simple code questions or "write me a function" → CODER/CODE
 - "Research X deeply", "compare A vs B", "analyze the pros and cons" → RESEARCHER/DEEP_RESEARCH
-- "Latest news on X", "what happened with Y", market data → ANALYST/RESEARCH
+- "Latest news on X", "what happened with Y", weather, market data → ANALYST/RESEARCH
 - Task CRUD operations → ORGANIZER
-- Memory save/recall → ARCHIVIST
+- Memory save/recall or "remind me", "what did I say about X" → ARCHIVIST/RETRIEVE or ARCHIVIST/STORE
 - Greetings, vague input → GENERAL/CHAT or GENERAL/CLARIFY
-- Multi-step requests → multiple tasks in array
+- MULTI-INTENT REQUESTS: If the user asks for two or more distinct things (e.g., "search for X and save Y"), decompose them into a LIST of tasks. DO NOT combine them into one.
 
 OUTPUT FORMAT:
 {"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": ["SpaceX"], "refined_query": "Search latest SpaceX news"}], "reasoning": "User wants news"}
 
 EXAMPLES:
 
+User: "What's the weather in Tokyo and add a task to book flights"
+{"tasks": [
+    {"intent": "ANALYST", "action": "RESEARCH", "keywords": ["weather", "Tokyo"], "refined_query": "Current weather in Tokyo"},
+    {"intent": "ORGANIZER", "action": "CREATE", "keywords": ["flights"], "refined_query": "Create task: Book flights to Tokyo"}
+], "reasoning": "Weather lookup + task creation"}
+
+User: "Check the weather in Punjab then remind me where my key is"
+{"tasks": [
+    {"intent": "ANALYST", "action": "RESEARCH", "keywords": ["weather", "Punjab"], "refined_query": "Current weather in Punjab, India"},
+    {"intent": "ARCHIVIST", "action": "RETRIEVE", "keywords": ["key"], "refined_query": "Where is my key stored?"}
+], "reasoning": "Decomposed into web search and memory retrieval"}
+
 User: "Write a Python function to sort a list"
 {"tasks": [{"intent": "CODER", "action": "CODE", "keywords": ["python", "sort", "list"], "refined_query": "Write a Python function to sort a list"}], "reasoning": "Code generation request"}
-
-User: "Compare React vs Vue for a startup project"
-{"tasks": [{"intent": "RESEARCHER", "action": "DEEP_RESEARCH", "keywords": ["React", "Vue", "startup", "comparison"], "refined_query": "Deep comparison of React vs Vue for startup use case"}], "reasoning": "Complex comparison needing multi-source synthesis"}
 
 User: "What's the latest on OpenAI?"
 {"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": ["OpenAI", "latest"], "refined_query": "Search latest OpenAI news and updates"}], "reasoning": "News lookup"}
