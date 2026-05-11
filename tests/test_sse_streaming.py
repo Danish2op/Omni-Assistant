@@ -1,18 +1,20 @@
 """
-SSE Streaming Tests — RED phase.
+SSE Streaming Tests — GREEN phase.
 
 Tests:
-1. generate_stream() yields str chunks
+1. generate_stream() yields str chunks (requires OPENROUTER_API_KEY)
 2. /chat/stream returns text/event-stream
 3. SSE events have correct format: data: {...}\n\n
 4. Final event has [DONE] marker
 """
 
+import os
 import pytest
 import json
 import requests
 
 API_BASE = "https://omni-assistant-v2.onrender.com"
+HAS_API_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
 
 
 class TestGenerateStream:
@@ -20,10 +22,18 @@ class TestGenerateStream:
 
     def test_generate_stream_exists(self):
         """generate_stream method must exist on MultiModelClient."""
-        from app.core.llm_v2 import MultiModelClient
-        client = MultiModelClient()
-        assert hasattr(client, "generate_stream"), "generate_stream() missing"
+        # Mock env to avoid ValueError
+        original = os.environ.get("OPENROUTER_API_KEY")
+        os.environ["OPENROUTER_API_KEY"] = original or "test-key"
+        try:
+            from app.core.llm_v2 import MultiModelClient
+            client = MultiModelClient()
+            assert hasattr(client, "generate_stream"), "generate_stream() missing"
+        finally:
+            if original is None:
+                del os.environ["OPENROUTER_API_KEY"]
 
+    @pytest.mark.skipif(not HAS_API_KEY, reason="OPENROUTER_API_KEY not set")
     def test_generate_stream_yields_strings(self):
         """generate_stream must yield string chunks."""
         from app.core.llm_v2 import MultiModelClient, AgentRole
@@ -40,13 +50,13 @@ class TestGenerateStream:
 
 
 class TestSSEEndpoint:
-    """Test /chat/stream endpoint returns proper SSE."""
+    """Test /chat/stream endpoint returns proper SSE (hits live Render)."""
 
     def test_stream_endpoint_exists(self):
-        """GET /chat/stream must not 404."""
+        """POST /chat/stream must not 404."""
         r = requests.post(f"{API_BASE}/chat/stream",
                           json={"message": "Hello"},
-                          stream=True, timeout=60)
+                          stream=True, timeout=120)
         assert r.status_code != 404, f"/chat/stream returned 404"
         assert r.status_code == 200, f"Got {r.status_code}"
 
@@ -54,20 +64,20 @@ class TestSSEEndpoint:
         """Response must be text/event-stream."""
         r = requests.post(f"{API_BASE}/chat/stream",
                           json={"message": "Hello"},
-                          stream=True, timeout=60)
+                          stream=True, timeout=120)
         ct = r.headers.get("content-type", "")
         assert "text/event-stream" in ct, f"Content-Type: {ct}"
 
     def test_stream_events_format(self):
-        """Each SSE event must be 'data: {json}\n\n'."""
+        """Each SSE event must be 'data: {json}\\n\\n'."""
         r = requests.post(f"{API_BASE}/chat/stream",
                           json={"message": "Hi"},
-                          stream=True, timeout=60)
+                          stream=True, timeout=120)
 
         events = []
         for line in r.iter_lines(decode_unicode=True):
             if line and line.startswith("data: "):
-                payload = line[6:]  # strip "data: "
+                payload = line[6:]
                 if payload == "[DONE]":
                     events.append({"type": "DONE"})
                     break
@@ -75,18 +85,14 @@ class TestSSEEndpoint:
                 events.append(parsed)
 
         assert len(events) >= 2, f"Expected >=2 events, got {len(events)}"
-
-        # First event should be ROUTER type
         assert events[0].get("type") == "ROUTER", f"First event: {events[0]}"
-
-        # Last event should be DONE
         assert events[-1].get("type") == "DONE", "Missing [DONE] marker"
 
     def test_stream_has_text_chunks(self):
         """Must have TEXT-type events with actual content."""
         r = requests.post(f"{API_BASE}/chat/stream",
                           json={"message": "Say hello"},
-                          stream=True, timeout=60)
+                          stream=True, timeout=120)
 
         text_chunks = []
         for line in r.iter_lines(decode_unicode=True):

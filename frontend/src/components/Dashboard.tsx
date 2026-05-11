@@ -146,41 +146,131 @@ export default function Dashboard() {
     setLoadingPhase(0);
     setCurrentIntent(null);
 
-    // Simulate Thinking Progression
+    // Simulate Thinking Progression (cleared when first TEXT arrives)
     const phaseInterval = setInterval(() => {
       setLoadingPhase(prev => (prev < 2 ? prev + 1 : prev));
     }, 1200);
 
     try {
-      const response = await axios.post(`${API_URL}/chat`, { message: userMessage });
-      const data = response.data;
-      
-      // Update intent mid-thinking if response arrives fast
-      setCurrentIntent(data.intent);
+      const response = await fetch(`${API_URL}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage }),
+      });
 
-      // Force high-end completion feel
-      setTimeout(() => {
+      if (!response.ok || !response.body) {
+        throw new Error(`Stream failed: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let streamedText = '';
+      let detectedIntent: string | null = null;
+      let messageAdded = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6);
+
+          if (payload === '[DONE]') continue;
+
+          try {
+            const event = JSON.parse(payload);
+
+            if (event.type === 'ROUTER') {
+              detectedIntent = event.intent;
+              setCurrentIntent(event.intent);
+            } else if (event.type === 'AGENT') {
+              // Agent identified — advance loading phase
+              setLoadingPhase(2);
+            } else if (event.type === 'TEXT') {
+              // First text chunk: clear loading, add AI message shell
+              if (!messageAdded) {
+                clearInterval(phaseInterval);
+                messageAdded = true;
+                setIsLoading(false);
+                streamedText = event.content || '';
+                setMessages(prev => [...prev, {
+                  role: 'ai',
+                  text: streamedText,
+                  intent: detectedIntent || undefined,
+                }]);
+              } else {
+                // Subsequent chunks: append to existing message
+                streamedText += event.content || '';
+                setMessages(prev => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === 'ai') {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      text: streamedText,
+                    };
+                  }
+                  return updated;
+                });
+              }
+            } else if (event.type === 'ERROR') {
+              clearInterval(phaseInterval);
+              setMessages(prev => [...prev, {
+                role: 'ai',
+                text: event.message || 'Stream error.',
+                intent: 'ERROR',
+              }]);
+              setIsLoading(false);
+              return;
+            }
+          } catch {
+            // Skip malformed JSON lines
+          }
+        }
+      }
+
+      // If no text was streamed at all, show fallback
+      if (!messageAdded) {
         clearInterval(phaseInterval);
-        setMessages(prev => [...prev, { 
-          role: 'ai', 
-          text: data.response || data.message || (data.status === 'Error' ? `System Error: ${data.error}` : "Command executed successfully."),
-          intent: data.intent
+        setMessages(prev => [...prev, {
+          role: 'ai',
+          text: 'No response generated.',
+          intent: detectedIntent || undefined,
         }]);
         setIsLoading(false);
-        
-        // REFRESH CHECK: Immediate sync after STORE/CREATE actions
-        if (data.intent === 'ORGANIZER' || data.intent === 'ARCHIVIST') {
-          fetchData(); 
-        }
-      }, 800);
+      }
+
+      // REFRESH CHECK: Immediate sync after STORE/CREATE actions
+      if (detectedIntent === 'ORGANIZER' || detectedIntent === 'ARCHIVIST') {
+        fetchData();
+      }
 
     } catch (error) {
       clearInterval(phaseInterval);
-      setMessages(prev => [...prev, { 
-        role: 'ai', 
-        text: "Neural break detected. Response synthesis failed. Check connection to Core.",
-        intent: 'ERROR'
-      }]);
+      
+      // Fallback: try regular /chat endpoint
+      try {
+        const fallbackRes = await axios.post(`${API_URL}/chat`, { message: userMessage });
+        const data = fallbackRes.data;
+        setMessages(prev => [...prev, {
+          role: 'ai',
+          text: data.response || data.message || 'Executed.',
+          intent: data.intent,
+        }]);
+        if (data.intent === 'ORGANIZER' || data.intent === 'ARCHIVIST') {
+          fetchData();
+        }
+      } catch {
+        setMessages(prev => [...prev, {
+          role: 'ai',
+          text: "Neural break detected. Response synthesis failed. Check connection to Core.",
+          intent: 'ERROR',
+        }]);
+      }
       setIsLoading(false);
     }
   };
