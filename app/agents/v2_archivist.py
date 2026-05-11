@@ -92,11 +92,11 @@ class V2ArchivistAgent:
         # Build metadata-enriched record
         record = {
             "content": content,
-            "metadata": json.dumps({
+            "metadata": {
                 "category": category,
                 "tags": tags,
                 "source": "user",
-            }),
+            },
         }
 
         result = self.db.save_data(self.table, record)
