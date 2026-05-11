@@ -44,7 +44,8 @@ The system will:
 V2 implements a "Decoupled Cognitive Pipeline" where the model is chosen based on the task complexity:
 
 ### 1. 🧠 Cognitive Router (The Orchestrator)
-The Router uses high-reasoning models (**Llama 3.3 70B** or **Gemma 4**) to analyze the user's prompt. It doesn't just guess intent—it generates a structured **Execution Plan** consisting of multiple sub-tasks.
+The Router uses high-reasoning models (**Gemma 4 26B A4B** or **Llama 3.3 70B**) to analyze the user's prompt. 
+> **Why Gemma 4?** We chose **Gemma 4 26B A4B** as our primary orchestrator because it is a state-of-the-art **Mixture-of-Experts (MoE)** model. With 128 fine-grained experts and a top-8 routing mechanism, it provides the complex reasoning capabilities of a 30B+ parameter model while maintaining the inference speed of a 4B parameter model—making it perfect for real-time task decomposition.
 
 ### 2. 📊 Specialized Agents
 *   **Researcher (DeepSeek-R1 / QwQ-32B)**: Optimized for deep reasoning and web-synthesis.
