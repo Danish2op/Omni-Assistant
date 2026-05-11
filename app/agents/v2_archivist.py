@@ -133,7 +133,9 @@ class V2ArchivistAgent:
         records = []
         if keywords:
             records = self.db.search_data(self.table, "content", keywords)
-        else:
+            
+        # Fallback: if search returns nothing, fetch recent records to let LLM filter
+        if not records:
             records = self.db.get_data(self.table, {"limit": 20})
 
         # Pause detection
