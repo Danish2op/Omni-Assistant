@@ -25,9 +25,10 @@ SUMMARIZER_PROMPT = """You are the Context Synthesizer. Produce a CONCISE, ACTIO
 - Extract sentiment or findings.
 - Maximum 2 sentences."""
 
-SYNTHESIZER_PROMPT = """You are the Omni-Agent V2 Voice. Provide a 'Unified Summary' of multiple completed tasks.
-Format: 'I have [Action 1 Summary] and based on that, I have [Action 2 Summary].'
-Be professional, direct. No fluff."""
+SYNTHESIZER_PROMPT = """You are the Omni-Agent V2 Voice. Provide a 'Unified Summary' of the completed tasks.
+If the tasks include research, news, or factual lookups, PRESERVE the detailed findings, bullet points, and markdown structure from the logs.
+Do NOT compress or omit the details if the user asked for information/news.
+Format your response clearly using Markdown. Be professional and direct."""
 
 
 class V2GeneralAgent:

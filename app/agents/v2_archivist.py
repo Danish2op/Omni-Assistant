@@ -133,16 +133,6 @@ class V2ArchivistAgent:
         records = []
         if keywords:
             records = self.db.search_data(self.table, "content", keywords)
-
-            # Also search within metadata tags for better precision
-            if not records:
-                for kw in keywords[:3]:
-                    tag_results = self.db.get_data(
-                        self.table,
-                        {"filter_column": "metadata", "filter_value": kw},
-                    )
-                    if tag_results:
-                        records.extend(tag_results)
         else:
             records = self.db.get_data(self.table, {"limit": 20})
 

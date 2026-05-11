@@ -278,9 +278,28 @@ export default function Dashboard() {
                         components={{
                           p: ({ children }) => <p className="mb-4 last:mb-0 leading-relaxed font-inter text-[13px] text-foreground/80">{children}</p>,
                           h1: ({ children }) => <h1 className="text-sm font-syne text-accent mt-6 mb-3 uppercase tracking-tighter border-b border-accent/20 pb-1">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-[13px] font-syne text-foreground mt-5 mb-2 font-bold uppercase">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-[12px] font-syne text-foreground/90 mt-4 mb-2 font-semibold uppercase">{children}</h3>,
                           strong: ({ children }) => <strong className="text-accent font-bold">{children}</strong>,
-                          ul: ({ children }) => <ul className="space-y-2 my-4 border-l border-border pl-4">{children}</ul>,
-                          li: ({ children }) => <li className="flex gap-2 text-[12px] text-foreground/70 before:content-['>'] before:text-accent/50 before:font-mono">{children}</li>
+                          ul: ({ children }) => <ul className="space-y-2 my-4 pl-4 list-disc marker:text-accent/50">{children}</ul>,
+                          ol: ({ children }) => <ol className="space-y-2 my-4 pl-4 list-decimal marker:text-accent/50 text-[12px] text-foreground/70">{children}</ol>,
+                          li: ({ children }) => <li className="text-[12px] text-foreground/70 pl-1">{children}</li>,
+                          a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{children}</a>,
+                          blockquote: ({ children }) => <blockquote className="border-l-2 border-accent/50 pl-3 italic text-foreground/60 my-3">{children}</blockquote>,
+                          code: ({ inline, className, children, ...props }: any) => {
+                            const match = /language-(\w+)/.exec(className || '')
+                            return !inline ? (
+                              <pre className="bg-surface-alt p-3 rounded-sm overflow-x-auto text-[11px] font-mono text-foreground/80 my-3 border border-border">
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              </pre>
+                            ) : (
+                              <code className="bg-surface-alt px-1 py-0.5 rounded-sm text-[11px] font-mono text-accent/90" {...props}>
+                                {children}
+                              </code>
+                            )
+                          }
                         }}
                       >
                         {msg.text}

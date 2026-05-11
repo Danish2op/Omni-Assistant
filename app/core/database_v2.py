@@ -96,7 +96,10 @@ class SupabaseV2Client:
         try:
             if not keywords:
                 return self.get_data(table_name, {"limit": limit})
-            or_clauses = ",".join([f"{column}.ilike.%{kw}%" for kw in keywords])
+            
+            # Search both the primary text column and the metadata JSONB column (cast to text)
+            or_clauses = ",".join([f"{column}.ilike.%{kw}%,metadata::text.ilike.%{kw}%" for kw in keywords])
+            
             response = (
                 self.client.table(table_name)
                 .select("*")
