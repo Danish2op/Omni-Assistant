@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useChatStream } from '../hooks/useChatStream';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -33,77 +34,13 @@ function cn(...inputs: ClassValue[]) {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Architectural Step Sequences
-const STEP_SEQUENCES: Record<string, string[]> = {
-  ANALYST: [
-    "PROTOCOL: Intent_Analyst (Confirmed)",
-    "EXECUTION: Fetching External Intelligence...",
-    "SYNTHESIS: Generating Market Abstract..."
-  ],
-  ARCHIVIST: [
-    "PROTOCOL: Intent_Archivist (Confirmed)",
-    "EXECUTION: Indexing Neural Memory...",
-    "SYNTHESIS: Retrieving Contextual Nodes..."
-  ],
-  ORGANIZER: [
-    "PROTOCOL: Intent_Organizer (Confirmed)",
-    "EXECUTION: Scheduling Operation...",
-    "SYNTHESIS: Updating Task Pipeline..."
-  ],
-  GENERAL: [
-    "PROTOCOL: Intent_General (Confirmed)",
-    "EXECUTION: Allocating Semantic Latency...",
-    "SYNTHESIS: Drafting Response..."
-  ],
-  DEFAULT: [
-    "PROTOCOL: Routing Request...",
-    "EXECUTION: Initializing Sub-Systems...",
-    "SYNTHESIS: Analyzing Input Stream..."
-  ]
-};
-
 export default function Dashboard() {
-  const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string, intent?: string }[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingPhase, setLoadingPhase] = useState(0);
-  const [currentIntent, setCurrentIntent] = useState<string | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Wake up Render free tier + initial data fetch
-  useEffect(() => {
-    setMounted(true);
-    // Pre-warm: fire-and-forget health ping (wakes cold Render instance)
-    fetch(`${API_URL}/health`).catch(() => {});
-    fetchData();
-    console.log("Neural Core: Verifying Database Connection...");
-    setMessages([{ 
-      role: 'ai', 
-      text: 'Neural Core Online. All monolith modules synchronized. Command line ready for neural orchestration.',
-      intent: 'SYSTEM'
-    }]);
-  }, []);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isLoading, loadingPhase]);
-
-  // Background Sync Interval (30s)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isLoading && !isRefreshing) {
-        console.log("Neural Core: Background sync initiated...");
-        fetchData();
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [isLoading, isRefreshing]);
 
   const fetchData = async () => {
     setIsRefreshing(true);
@@ -127,6 +64,51 @@ export default function Dashboard() {
     }
   };
 
+  const {
+    isLoading,
+    currentIntent,
+    ttfb,
+    messages,
+    processLogs,
+    sendMessage,
+    setMessages
+  } = useChatStream({
+    apiUrl: API_URL,
+    onRefreshData: fetchData
+  });
+
+  // Wake up Render free tier + initial data fetch
+  useEffect(() => {
+    setMounted(true);
+    // Pre-warm: fire-and-forget health ping (wakes cold Render instance)
+    fetch(`${API_URL}/health`).catch(() => {});
+    fetchData();
+    console.log("Neural Core: Verifying Database Connection...");
+    setMessages([{ 
+      role: 'ai', 
+      text: 'Neural Core Online. All monolith modules synchronized. Command line ready for neural orchestration.',
+      intent: 'SYSTEM'
+    }]);
+  }, [setMessages]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading, processLogs]);
+
+  // Background Sync Interval (30s)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isLoading && !isRefreshing) {
+        console.log("Neural Core: Background sync initiated...");
+        fetchData();
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isLoading, isRefreshing]);
+
+
   const toggleTaskStatus = async (taskId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
     try {
@@ -137,172 +119,14 @@ export default function Dashboard() {
     }
   };
 
-  const sendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
-    setIsLoading(true);
-    setLoadingPhase(0);
-    setCurrentIntent(null);
-
-    // Simulate Thinking Progression (cleared when first TEXT arrives)
-    const phaseInterval = setInterval(() => {
-      setLoadingPhase(prev => (prev < 2 ? prev + 1 : prev));
-    }, 1200);
-
-    try {
-      // Retry logic for Render cold-start 502s
-      let response: Response | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000);
-        try {
-          response = await fetch(`${API_URL}/chat/stream`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: userMessage }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          if (response.ok) break;
-          // 502 = cold start, retry once after brief wait
-          if (response.status === 502 && attempt === 0) {
-            console.log('Neural Core: Cold start detected, retrying...');
-            await new Promise(r => setTimeout(r, 3000));
-            continue;
-          }
-        } catch (fetchErr) {
-          clearTimeout(timeout);
-          if (attempt === 0) {
-            console.log('Neural Core: Connection failed, retrying...');
-            await new Promise(r => setTimeout(r, 3000));
-            continue;
-          }
-          throw fetchErr;
-        }
-      }
-
-      if (!response || !response.ok || !response.body) {
-        throw new Error(`Stream failed: ${response?.status || 'no response'}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let streamedText = '';
-      let detectedIntent: string | null = null;
-      let messageAdded = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6);
-
-          if (payload === '[DONE]') continue;
-
-          try {
-            const event = JSON.parse(payload);
-
-            if (event.type === 'ROUTER') {
-              detectedIntent = event.intent;
-              setCurrentIntent(event.intent);
-            } else if (event.type === 'AGENT') {
-              // Agent identified — advance loading phase
-              setLoadingPhase(2);
-            } else if (event.type === 'TEXT') {
-              // First text chunk: clear loading, add AI message shell
-              if (!messageAdded) {
-                clearInterval(phaseInterval);
-                messageAdded = true;
-                setIsLoading(false);
-                streamedText = event.content || '';
-                setMessages(prev => [...prev, {
-                  role: 'ai',
-                  text: streamedText,
-                  intent: detectedIntent || undefined,
-                }]);
-              } else {
-                // Subsequent chunks: append to existing message
-                streamedText += event.content || '';
-                setMessages(prev => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === 'ai') {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      text: streamedText,
-                    };
-                  }
-                  return updated;
-                });
-              }
-            } else if (event.type === 'ERROR') {
-              clearInterval(phaseInterval);
-              setMessages(prev => [...prev, {
-                role: 'ai',
-                text: event.message || 'Stream error.',
-                intent: 'ERROR',
-              }]);
-              setIsLoading(false);
-              return;
-            }
-          } catch {
-            // Skip malformed JSON lines
-          }
-        }
-      }
-
-      // If no text was streamed at all, show fallback
-      if (!messageAdded) {
-        clearInterval(phaseInterval);
-        setMessages(prev => [...prev, {
-          role: 'ai',
-          text: 'No response generated.',
-          intent: detectedIntent || undefined,
-        }]);
-        setIsLoading(false);
-      }
-
-      // REFRESH CHECK: Immediate sync after STORE/CREATE actions
-      if (detectedIntent === 'ORGANIZER' || detectedIntent === 'ARCHIVIST') {
-        fetchData();
-      }
-
-    } catch (error) {
-      clearInterval(phaseInterval);
-      
-      // Fallback: try regular /chat endpoint
-      try {
-        const fallbackRes = await axios.post(`${API_URL}/chat`, { message: userMessage });
-        const data = fallbackRes.data;
-        setMessages(prev => [...prev, {
-          role: 'ai',
-          text: data.response || data.message || 'Executed.',
-          intent: data.intent,
-        }]);
-        if (data.intent === 'ORGANIZER' || data.intent === 'ARCHIVIST') {
-          fetchData();
-        }
-      } catch {
-        setMessages(prev => [...prev, {
-          role: 'ai',
-          text: "Neural break detected. Response synthesis failed. Check connection to Core.",
-          intent: 'ERROR',
-        }]);
-      }
-      setIsLoading(false);
-    }
+    await sendMessage(userMessage);
   };
-
-  const currentSteps = STEP_SEQUENCES[currentIntent || 'DEFAULT'] || STEP_SEQUENCES.DEFAULT;
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-inter selection:bg-accent/30 selection:text-white">
@@ -313,7 +137,7 @@ export default function Dashboard() {
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "circOut" }}
-        className="w-[300px] glass-panel border-r border-border m-4 flex flex-col z-20"
+        className="w-[300px] glass-panel backdrop-blur-xl bg-surface/40 border-r border-border m-4 flex flex-col z-20 rounded-sm"
       >
         <div className="p-6 border-b border-border flex items-center justify-between">
           <div className="flex flex-col">
@@ -321,7 +145,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <span className="text-[9px] text-foreground/30 font-mono">NODE: MEMORY_BANK</span>
               {isRefreshing && (
-                <span className="text-[8px] text-accent font-mono animate-pulse uppercase tracking-[0.2em]">[SYNCING_NODES]</span>
+                <span className="text-[8px] text-accent font-mono animate-pulse uppercase tracking-[0.2em]">[SYNCING]</span>
               )}
             </div>
           </div>
@@ -381,7 +205,7 @@ export default function Dashboard() {
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.8 }}
-          className="px-12 py-8 flex items-center justify-between relative z-10 border-b border-border/50"
+          className="px-12 py-8 flex items-center justify-between relative z-10 border-b border-border/50 backdrop-blur-md bg-background/60"
         >
           <div className="flex items-center gap-5">
             <div className="p-2 border border-accent/20 bg-accent/5 rounded-sm">
@@ -392,22 +216,22 @@ export default function Dashboard() {
                 <h1 className="text-xl font-bold tracking-[-0.03em] text-foreground font-syne">
                   OMNI<span className="text-accent/80">CORE</span>
                 </h1>
-                <span className="text-[8px] px-2 py-0.5 border border-accent/20 text-accent font-mono tracking-tighter rounded-full bg-accent/5">V1.0.4</span>
+                <span className="text-[8px] px-2 py-0.5 border border-accent/20 text-accent font-mono tracking-tighter rounded-full bg-accent/5">{process.env.NODE_ENV === 'development' ? 'DEV_ENV' : 'PROD_ENV'}</span>
               </div>
               <div className="flex items-center gap-3 mt-1.5 font-mono">
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-success/80 shadow-[0_0_8px_var(--success)]" />
-                  <span className="text-[8px] text-foreground/40 uppercase tracking-widest">Neural Link: ACTIVE</span>
+                  <span className="text-[8px] text-foreground/40 uppercase tracking-widest">Network Link: {ttfb !== null ? 'ACTIVE' : 'CONNECTING...'}</span>
                 </div>
                 <div className="w-[1px] h-2 bg-border" />
-                <span className="text-[8px] text-foreground/40 uppercase tracking-widest">LATENCY: 12MS</span>
+                <span className="text-[8px] text-foreground/40 uppercase tracking-widest">LATENCY: {ttfb !== null ? `${ttfb}MS` : 'CALCULATING...'}</span>
               </div>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
             <div className="px-3 py-1.5 border border-border bg-surface text-[8px] font-mono text-foreground/30 uppercase tracking-[0.2em] rounded-sm">
-              SECURE_HUB_X
+              WORKSPACE
             </div>
           </div>
         </motion.header>
@@ -486,25 +310,16 @@ export default function Dashboard() {
                 <span className="text-[10px] font-bold text-accent uppercase tracking-[0.3em] font-syne">Async Process Active</span>
               </div>
               <div className="space-y-3">
-                {currentSteps.map((step, idx) => (
+                {processLogs.map((log, idx) => (
                   <motion.div 
                     key={idx}
                     initial={{ opacity: 0, x: -5 }}
-                    animate={{ 
-                      opacity: loadingPhase >= idx ? 1 : 0.1, 
-                      x: loadingPhase >= idx ? 0 : -3 
-                    }}
+                    animate={{ opacity: 1, x: 0 }}
                     className="flex items-center gap-4 transition-all duration-500"
                   >
-                    <div className={cn(
-                      "w-4 h-[1px] bg-border transition-all",
-                      loadingPhase === idx && "w-8 bg-accent shadow-[0_0_8px_var(--accent)]"
-                    )} />
-                    <span className={cn(
-                      "text-[9px] uppercase font-mono tracking-[0.2em]",
-                      loadingPhase === idx ? "text-accent" : "text-foreground/20"
-                    )}>
-                      {step}
+                    <div className="w-4 h-[1px] bg-accent shadow-[0_0_8px_var(--accent)]" />
+                    <span className="text-[9px] uppercase font-mono tracking-[0.2em] text-accent">
+                      {log.message}
                     </span>
                   </motion.div>
                 ))}
@@ -517,7 +332,7 @@ export default function Dashboard() {
         {/* Neural Input Module */}
         <div className="px-12 py-10 pt-0 mt-auto relative z-10">
           <form 
-            onSubmit={sendMessage}
+            onSubmit={handleSendMessage}
             className="relative"
           >
             <div className="absolute -inset-1 bg-accent/5 blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
@@ -544,7 +359,7 @@ export default function Dashboard() {
           </form>
           <div className="mt-4 flex justify-between text-[7px] font-mono text-foreground/20 uppercase tracking-[0.4em]">
             <div className="flex gap-4">
-              <span>PATH: /dev/neural_hub_01</span>
+              <span>UPLINK: {API_URL}</span>
               <span>AUTH: SESSION_ACTIVE</span>
             </div>
             <span>[SYS_CLK: {mounted ? new Date().toLocaleTimeString() : '--:--:--'}]</span>
@@ -557,14 +372,14 @@ export default function Dashboard() {
         initial={{ x: 20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "circOut" }}
-        className="w-[340px] glass-panel border-l border-border m-4 flex flex-col z-20"
+        className="w-[340px] glass-panel backdrop-blur-xl bg-surface/40 border-l border-border m-4 flex flex-col z-20 rounded-sm"
       >
         <div className="p-6 border-b border-border">
           <h2 className="text-accent text-[10px] font-bold uppercase tracking-[3px] mb-1 font-syne">Operation Pipeline</h2>
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-foreground/30 font-mono">NODE: TASK_ORCHESTRATOR</span>
             {isRefreshing && (
-              <span className="text-[8px] text-accent font-mono animate-pulse uppercase tracking-[0.2em]">[POLLING_ASYNC]</span>
+              <span className="text-[8px] text-accent font-mono animate-pulse uppercase tracking-[0.2em]">[POLLING]</span>
             )}
           </div>
         </div>
