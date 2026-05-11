@@ -74,9 +74,11 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initial Fetch & Connection Health
+  // Wake up Render free tier + initial data fetch
   useEffect(() => {
     setMounted(true);
+    // Pre-warm: fire-and-forget health ping (wakes cold Render instance)
+    fetch(`${API_URL}/health`).catch(() => {});
     fetchData();
     console.log("Neural Core: Verifying Database Connection...");
     setMessages([{ 
@@ -152,14 +154,39 @@ export default function Dashboard() {
     }, 1200);
 
     try {
-      const response = await fetch(`${API_URL}/chat/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
-      });
+      // Retry logic for Render cold-start 502s
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
+        try {
+          response = await fetch(`${API_URL}/chat/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: userMessage }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (response.ok) break;
+          // 502 = cold start, retry once after brief wait
+          if (response.status === 502 && attempt === 0) {
+            console.log('Neural Core: Cold start detected, retrying...');
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          if (attempt === 0) {
+            console.log('Neural Core: Connection failed, retrying...');
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          throw fetchErr;
+        }
+      }
 
-      if (!response.ok || !response.body) {
-        throw new Error(`Stream failed: ${response.status}`);
+      if (!response || !response.ok || !response.body) {
+        throw new Error(`Stream failed: ${response?.status || 'no response'}`);
       }
 
       const reader = response.body.getReader();
