@@ -11,9 +11,11 @@ Runs alongside V1 main.py — same FastAPI patterns, different pipeline.
 """
 
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel
 import traceback
+import json as json_mod
 from contextlib import asynccontextmanager
 from app.core.database_v2 import SupabaseV2Client
 from app.agents.v2_router import V2RouterAgent
@@ -81,7 +83,7 @@ def root():
             "models": "Multi-model with fallback cascades",
             "agents": ["ANALYST", "ARCHIVIST", "ORGANIZER", "CODER", "RESEARCHER", "GENERAL"],
         },
-        "endpoints": ["/health", "/chat", "/tasks", "/knowledge", "/v2/memories", "/api/briefing"],
+        "endpoints": ["/health", "/chat", "/chat/stream", "/tasks", "/knowledge", "/v2/memories", "/api/briefing"],
     }
 
 
@@ -282,6 +284,92 @@ def chat(request: ChatRequest):
             "intent": "SYSTEM_FAILSAFE",
             "response": "I encountered an unexpected issue. Try again or rephrase?",
         }
+
+
+# ---- V2 SSE Streaming Chat ----
+
+def _sse_event(event_type: str, **kwargs) -> str:
+    """Format SSE event: data: {json}\n\n"""
+    payload = {"type": event_type, **kwargs}
+    return f"data: {json_mod.dumps(payload)}\n\n"
+
+
+@app.post("/chat/stream")
+def chat_stream(request: ChatRequest):
+    """
+    SSE streaming version of /chat.
+    Events: ROUTER → AGENT → TEXT (chunks) → DONE
+    """
+    def event_generator():
+        try:
+            # Step 1: Route
+            route_result = router_agent.route_request(request.message)
+            tasks = route_result.get("tasks", [])
+
+            if not tasks:
+                yield _sse_event("ROUTER", intent="GENERAL")
+                yield _sse_event("TEXT", content="No actions identified.")
+                yield "data: [DONE]\n\n"
+                return
+
+            task = tasks[0]
+            intent = task.get("intent", "GENERAL")
+            action = task.get("action", "CHAT")
+            refined_query = task.get("refined_query", request.message)
+            keywords = task.get("keywords", [])
+
+            if action == "CLARIFY":
+                intent = "GENERAL"
+
+            yield _sse_event("ROUTER", intent=intent)
+
+            # Step 2: Agent dispatch
+            agent_names = {
+                "ANALYST": "Research & News",
+                "ARCHIVIST": "Memory",
+                "ORGANIZER": "Task Manager",
+                "CODER": "Code Assistant",
+                "RESEARCHER": "Deep Research",
+                "GENERAL": "General Assistant",
+            }
+            yield _sse_event("AGENT", name=agent_names.get(intent, intent))
+
+            # Step 3: Stream or non-stream based on agent
+            if intent in ("CODER", "RESEARCHER"):
+                # These support token streaming
+                sys_prompt = CODER_SYSTEM_PROMPT if intent == "CODER" else RESEARCHER_SYSTEM_PROMPT
+                role = AgentRole.CODER if intent == "CODER" else AgentRole.RESEARCHER
+
+                for chunk in coder_llm.generate_stream(
+                    prompt=refined_query,
+                    system_instruction=sys_prompt,
+                    role=role,
+                    max_tokens=4096,
+                    temperature=0.4 if intent == "CODER" else 0.6,
+                ):
+                    yield _sse_event("TEXT", content=chunk)
+            else:
+                # Non-streamable agents — get full response, emit as one TEXT
+                response = _dispatch_agent(intent, action, keywords, request.message, refined_query)
+                response = response or "Processed but no clear result."
+                yield _sse_event("TEXT", content=response)
+
+            yield "data: [DONE]\n\n"
+
+        except Exception as e:
+            print(f"[V2 STREAM] Error: {traceback.format_exc()}")
+            yield _sse_event("ERROR", message="Stream interrupted. Try again.")
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _dispatch_agent(

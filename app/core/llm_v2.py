@@ -6,9 +6,10 @@ Each role has its own fallback cascade of free OpenRouter models.
 """
 
 import os
+import json
 import requests
 from enum import Enum
-from typing import Optional
+from typing import Optional, Generator
 
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -160,3 +161,87 @@ class MultiModelClient:
         """Return primary model name for a given role (for logging/UI)."""
         chain = MODEL_REGISTRY.get(role, MODEL_REGISTRY[AgentRole.GENERALIST])
         return chain[0] if chain else "unknown"
+
+    def generate_stream(
+        self,
+        prompt: str,
+        system_instruction: Optional[str] = None,
+        role: AgentRole = AgentRole.GENERALIST,
+        max_tokens: int = 2048,
+        temperature: float = 0.7,
+    ) -> Generator[str, None, None]:
+        """
+        Stream response chunks from OpenRouter.
+
+        Yields text deltas as they arrive. Falls back through model cascade.
+        """
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+
+        fallback_chain = MODEL_REGISTRY.get(role, MODEL_REGISTRY[AgentRole.GENERALIST])
+        last_error = None
+
+        for model_id in fallback_chain:
+            try:
+                payload = {
+                    "model": model_id,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "stream": True,
+                }
+
+                response = requests.post(
+                    OPENROUTER_API_URL,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60,
+                    stream=True,
+                )
+
+                if response.status_code in (429, 503):
+                    print(f"[V2 STREAM] {model_id} rate-limited, falling back...")
+                    last_error = f"HTTP {response.status_code}"
+                    continue
+
+                if response.status_code != 200:
+                    print(f"[V2 STREAM] {model_id} error: {response.status_code}")
+                    last_error = f"HTTP {response.status_code}"
+                    continue
+
+                # Stream SSE chunks from OpenRouter
+                yielded_any = False
+                for line in response.iter_lines(decode_unicode=True):
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        if delta:
+                            yielded_any = True
+                            yield delta
+                    except json.JSONDecodeError:
+                        continue
+
+                if yielded_any:
+                    return  # Success, stop fallback
+
+                last_error = "No content streamed"
+                continue
+
+            except requests.exceptions.Timeout:
+                print(f"[V2 STREAM] {model_id} timeout, falling back...")
+                last_error = "Timeout"
+                continue
+            except Exception as e:
+                last_error = str(e)
+                print(f"[V2 STREAM] {model_id} exception: {last_error}")
+                continue
+
+        # All models exhausted
+        yield f"[V2 Error] All {role.value} models at capacity."
