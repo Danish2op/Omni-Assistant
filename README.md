@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/version-2.0.0--COGNITIVE-blueviolet?style=for-the-badge" alt="Version" />
   <img src="https://img.shields.io/badge/backend-FastAPI-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
   <img src="https://img.shields.io/badge/frontend-Next.js%2015-black?style=for-the-badge&logo=next.js" alt="Next.js" />
-  <img src="https://img.shields.io/badge/Models-DeepSeek--R1%20%7C%20Llama%203.3-orange?style=for-the-badge" alt="Models" />
+  <img src="https://img.shields.io/badge/Models-DeepSeek%20%7C%20Llama%20%7C%20Qwen%20%7C%20Gemma-orange?style=for-the-badge" alt="Models" />
   <img src="https://img.shields.io/badge/Search-Tavily%20AI-blue?style=for-the-badge" alt="Tavily" />
 </p>
 
