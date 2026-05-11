@@ -218,13 +218,9 @@ def chat(request: ChatRequest):
             keywords = task.get("keywords", [])
             refined_query = task.get("refined_query", request.message)
 
-            # CLARIFY → respond immediately
+            # CLARIFY → route through GENERAL agent for a real response
             if action == "CLARIFY":
-                return {
-                    "status": "Completed",
-                    "intent": "GENERAL",
-                    "response": "I need more context. Could you rephrase or be more specific?",
-                }
+                intent = "GENERAL"
 
             # Inject context from previous step
             agent_query = refined_query
