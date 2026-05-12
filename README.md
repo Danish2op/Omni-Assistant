@@ -5,132 +5,85 @@
 <h1 align="center">🧠 Omni-Agent V2</h1>
 
 <p align="center">
-  <strong>A Multi-Agent, Multi-Model Cognitive Hub powered by OpenRouter — featuring sequential orchestration, advanced web intelligence, and deep-memory retrieval.</strong>
+  <strong>The Future of Personal Intelligence — Smarter, Faster, and Built for Action.</strong>
 </p>
 
 <p align="center">
   <a href="https://omni-v2-nu.vercel.app">
     <img src="https://img.shields.io/badge/Live%20Demo-Visit%20App-00d4ff?style=for-the-badge&logo=vercel" alt="Live Demo" />
   </a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0--COGNITIVE-blueviolet?style=for-the-badge" alt="Version" />
-  <img src="https://img.shields.io/badge/backend-FastAPI-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/frontend-Next.js%2015-black?style=for-the-badge&logo=next.js" alt="Next.js" />
-  <img src="https://img.shields.io/badge/Models-DeepSeek%20%7C%20Llama%20%7C%20Qwen%20%7C%20Gemma-orange?style=for-the-badge" alt="Models" />
-  <img src="https://img.shields.io/badge/Search-Tavily%20AI-blue?style=for-the-badge" alt="Tavily" />
+  <img src="https://img.shields.io/badge/Models-MoE%20%7C%20DeepSeek--R1%20%7C%20Llama%203.3-orange?style=for-the-badge" alt="Models" />
 </p>
 
 ---
 
-## ✨ What's New in V2?
+## 🌟 What is Omni-Agent V2?
 
-Omni-Agent V2 is a complete architectural overhaul of the original system. It moves away from single-intent responses toward a **Multi-Agent Orchestration** model that can decompose, execute, and synthesize complex, multi-part requests.
+Omni-Agent is not just another chatbot. It is a **Cognitive Operating System** designed to handle your life's complexity. While basic AIs can only reply to messages, Omni-Agent can **research the live web**, **manage your calendar**, and **remember every important detail** you've ever mentioned.
 
-### 🔄 Multi-Intent Decompression
-V2 can now handle compound prompts like: 
-> *"Research the latest Nvidia earnings, store a note about their AI revenue, and set a task to review my portfolio tomorrow."*
-
-The system will:
-1. 🔍 Decompose the prompt into 3 distinct atomic tasks.
-2. 🔄 Execute them sequentially using specialized sub-agents.
-3. 📝 Synthesize a final unified response with all actions confirmed.
+### How it helps you every day:
+- 🕵️ **Proactive Research**: Ask "What's the outlook for Nifty tomorrow?" and it scans live news, analyzes sentiment, and gives you a summary with sources.
+- 🧠 **Persistent Memory**: Tell it "My sister is allergic to peanuts" once. Months later, if you ask for recipe ideas, it will automatically filter out peanut-based options.
+- ✅ **Total Organization**: It understands natural language. "Remind me to call the bank tomorrow at 10 AM" instantly becomes a tracked task in your dashboard.
+- ⚡ **Multi-Action Reasoning**: You can give complex commands like: *"Find the latest news on SpaceX and remind me to watch the launch tonight."* It splits this into research and task management automatically.
 
 ---
 
-## 🏗️ Architecture: Multi-Agent & Multi-Model
+## 🧠 The Brain: Data-Driven Model Selection
 
-V2 implements a "Decoupled Cognitive Pipeline" where the model is chosen based on the task complexity:
+We don't settle for "good enough." Omni-Agent V2 uses a **Multi-Model Expert Architecture**. Every request is handled by the model best suited for that specific task, backed by industry-standard benchmarks.
 
-### 1. 🧠 Cognitive Router (The Orchestrator)
-The Router uses high-reasoning models (**Gemma 4 26B A4B** or **Llama 3.3 70B**) to analyze the user's prompt. 
-> **Why Gemma 4?** We chose **Gemma 4 26B A4B** as our primary orchestrator because it is a state-of-the-art **Mixture-of-Experts (MoE)** model. With 128 fine-grained experts and a top-8 routing mechanism, it provides the complex reasoning capabilities of a 30B+ parameter model while maintaining the inference speed of a 4B parameter model—making it perfect for real-time task decomposition.
+| Model | Role | Key Benchmark (MMLU) | Specialty |
+| :--- | :--- | :--- | :--- |
+| **Gemma 4 26B A4B** | **Orchestrator** | **82.6%** | **Mixture-of-Experts (MoE)**: Reasoning & Dispatch. |
+| **DeepSeek-R1** | **Researcher** | **90.1%** | **SOTA Reasoning**: 97.3% Math & 96.3% Coding accuracy. |
+| **Llama 3.3 70B** | **Archivist** | **86.0%** | **Logical Consistency**: 88.4% HumanEval (Coding). |
 
-### 2. 📊 Specialized Agents
-*   **Researcher (DeepSeek-R1 / QwQ-32B)**: Optimized for deep reasoning and web-synthesis.
-*   **Archivist (Llama 3.3)**: Manages semantic memory storage and category-based retrieval.
-*   **Organizer (Llama 3.3)**: Handles structured task CRUD and deadline extraction.
-*   **Coder (Qwen 2.5 Coder)**: Specialized for technical queries and code generation.
-
-### 3. 🔄 Resilient Model Fallback
-V2 uses a **Per-Role Fallback Cascade** via OpenRouter. If the primary model for a role is rate-limited or unavailable, the system automatically tries 2-3 secondary models in real-time, ensuring zero downtime for the user.
+### ⚡ Why Gemma 4 26B A4B?
+We chose this as our primary **Orchestrator** because of its innovative **Mixture-of-Experts (MoE)** architecture. It has 25.2 Billion parameters in total, but only activates 3.8 Billion per token. This gives you **GPT-4 class reasoning speed** with the efficiency of a much smaller model, ensuring your assistant responds in milliseconds.
 
 ---
 
-## 🚀 Key Features
+## 🛠️ How it Works (The Architecture)
 
-### 🔍 Advanced Web Intelligence (Tavily AI)
-Legacy DuckDuckGo search has been replaced with **Tavily AI**.
-*   **Advanced Search Depth**: Fetches high-fidelity technical and financial data.
-*   **Surgical Precision**: Delivers source-linked citations for every factual claim.
-*   **Link Verification**: Automatically filters out broken or irrelevant links.
+Omni-Agent uses a "Manager-Worker" pattern. Your request hits the **Neural Router** (Gemma-4), which builds an execution plan and delegates work to specialized agents.
 
-### 📚 V2 Memory Engine (Memory Archivist)
-The memory system has been upgraded to a structured **Cognitive Store**:
-*   **Category-Scoped Search**: Retrieve information specifically from `finance`, `personal`, `work`, or `interview` categories.
-*   **JSONB Metadata**: Stores rich context, source URLs, and timestamps for every memory.
-*   **Keyword Extraction**: Automated tag generation for faster, more accurate retrieval.
-
-### ✅ Task Orchestration
-*   Extracts priorities and due dates from natural language.
-*   Supports task filtering by keyword and category.
-*   Interactive task status updates via the unified dashboard.
-
----
-
-## 📂 Project Structure
-
-```
-Omni-Agent/
-├── main_v2.py                   # 🚀 V2 Multi-Intent Orchestrator
-├── requirements.txt             # Updated with Tavily & OpenRouter deps
-├── render.yaml                  # Render deployment configuration
-│
-├── app/
-│   ├── agents/
-│   │   ├── v2_router.py         # 🧠 Multi-Intent Reasoning Engine
-│   │   ├── v2_analyst.py        # 🔍 Tavily-powered Research Agent
-│   │   ├── v2_archivist.py      # 📚 Category-based Memory Agent
-│   │   └── v2_organizer.py      # ✅ Advanced Task Manager
-│   ├── core/
-│   │   ├── llm_v2.py            # 🔄 Multi-Model Client (Fallback Chain)
-│   │   └── database_v2.py       # 🗄️ Enhanced Supabase V2 Client
-│   └── tools/
-│       └── tavily_search.py     # 🌐 Tavily API Integration
-│
-├── frontend/
-│   ├── src/
-│   │   └── components/
-│   │       └── Dashboard.tsx    # 🎨 V2 Neural Dashboard
+```mermaid
+graph TD
+    User((User Request)) --> Router{🧠 Neural Router<br/>Gemma-4}
+    Router --> Plan[Execution Plan]
+    Plan --> Analyst[🔍 Researcher<br/>DeepSeek-R1]
+    Plan --> Archivist[📚 Archivist<br/>Llama 3.3]
+    Plan --> Organizer[✅ Organizer<br/>Llama 3.3]
+    Analyst --> Web((Live Web))
+    Archivist --> Mem((Long-term Memory))
+    Organizer --> Tasks((Task Database))
+    Analyst & Archivist & Organizer --> Final[✨ Unified Response]
+    Final --> User
 ```
 
 ---
 
-## ⚡ Tech Stack Evolution
-
-| Layer | V1 (Legacy) | V2 (Cognitive Upgrade) |
-| :--- | :--- | :--- |
-| **LLM Gateway** | Google AI Studio | **OpenRouter (Multi-Provider)** |
-| **Primary Models** | Gemini 1.5 Flash | **DeepSeek-R1, Llama 3.3, Qwen 2.5** |
-| **Orchestration** | Single Intent | **Sequential Multi-Task Loop** |
-| **Web Search** | DuckDuckGo | **Tavily AI (Advanced Mode)** |
-| **Memory Search**| Global keyword | **Category-Scoped + Keywords** |
-| **Database** | Supabase V1 | **Supabase V2 (Enhanced Schema)** |
+## 🌍 Global Standards: IST Optimized
+Omni-Agent V2 is fully synchronized with **Indian Standard Time (IST)**. 
+- All reminders, timestamps, and "tomorrow" calculations are based on your local time.
+- Historical data has been migrated to ensure consistency across the entire platform.
 
 ---
 
-## 🌐 Deployment
+## 🚀 Getting Started
 
-### Backend → [Render](https://render.com/)
-1. Connect your GitHub repo.
-2. Set `OPENROUTER_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, and `TAVILY_API_KEY`.
-3. The build will automatically use `main_v2.py`.
+### Backend Setup
+1. Clone the repo and install dependencies: `pip install -r requirements.txt`
+2. Configure `.env` with:
+   - `OPENROUTER_API_KEY`
+   - `TAVILY_API_KEY`
+   - `SUPABASE_URL` & `SUPABASE_KEY`
+3. Run: `uvicorn main:app --reload`
 
-### Frontend → [Vercel](https://vercel.com/)
-1. Import the `frontend/` directory.
-2. Set `NEXT_PUBLIC_API_URL` to your Render backend address.
-3. Deploy to the `v2-architecture` branch.
+### Frontend Setup
+1. `cd frontend && npm install`
+2. `npm run dev`
 
 ---
 

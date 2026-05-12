@@ -146,7 +146,7 @@ async def update_news_cache():
     Ensures zero-latency for user requests.
     """
     all_items = []
-    print(f"[{datetime.now()}] Neural Hub: Refreshing news cache...")
+    print(f"[{datetime.now(IST)}] Neural Hub: Refreshing news cache...")
     
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = [
@@ -310,7 +310,7 @@ def parse_date_from_entry(entry) -> datetime:
                 continue
     
     # Final fallback: current time
-    return datetime.now(timezone.utc)
+    return datetime.now(IST)
 
 
 def fetch_single_feed(source_name: str, feed_url: str) -> List[Dict[str, Any]]:
@@ -408,8 +408,8 @@ async def fetch_all_feeds() -> Dict[str, List[Dict[str, Any]]]:
                 feed_items = await task
                 results_by_source[source] = feed_items
                 # Update source status on success
-                source_status[source]["last_success"] = datetime.now(timezone.utc)
-                source_status[source]["last_attempt"] = datetime.now(timezone.utc)
+                source_status[source]["last_success"] = datetime.now(IST)
+                source_status[source]["last_attempt"] = datetime.now(IST)
                 source_status[source]["total_fetches"] += 1
                 source_status[source]["successful_fetches"] += 1
                 source_status[source]["consecutive_failures"] = 0
@@ -418,7 +418,7 @@ async def fetch_all_feeds() -> Dict[str, List[Dict[str, Any]]]:
                 print(f"✗ Fatal error for {source}: {type(e).__name__}: {str(e)}")
                 results_by_source[source] = []  # Empty = preserve old articles
                 # Update source status on failure
-                source_status[source]["last_attempt"] = datetime.now(timezone.utc)
+                source_status[source]["last_attempt"] = datetime.now(IST)
                 source_status[source]["total_fetches"] += 1
                 source_status[source]["consecutive_failures"] += 1
     
@@ -506,18 +506,18 @@ def update_news_storage(new_items_by_source: Dict[str, List[Dict[str, Any]]]) ->
 
 async def scheduled_update():
     """Background task to update news feeds periodically."""
-    print(f"[{datetime.now()}] Starting scheduled news update...")
+    print(f"[{datetime.now(IST)}] Starting scheduled news update...")
     
     try:
         # Returns Dict[source_name, List[articles]]
         new_items_by_source = await fetch_all_feeds()
         update_news_storage(new_items_by_source)
-        print(f"[{datetime.now()}] Update complete. Total items: {len(news_storage)}")
+        print(f"[{datetime.now(IST)}] Update complete. Total items: {len(news_storage)}")
     except asyncio.CancelledError:
-        print(f"[{datetime.now()}] Scheduled update cancelled")
+        print(f"[{datetime.now(IST)}] Scheduled update cancelled")
         raise
     except Exception as e:
-        print(f"[{datetime.now()}] Error during scheduled update: {type(e).__name__}: {str(e)}")
+        print(f"[{datetime.now(IST)}] Error during scheduled update: {type(e).__name__}: {str(e)}")
 
 
 # ============================================================================
@@ -673,7 +673,7 @@ async def health_check(request: Request):
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(IST).isoformat(),
         "total_news_items": len(news_storage),
         "sources_count": len(RSS_FEEDS),
         "version": "2.0.0"

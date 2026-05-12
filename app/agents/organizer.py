@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from app.core.time_utils import format_ist_time
 from app.core.database import SupabaseClient
 from app.core.llm import GeminiClient
 
@@ -18,7 +18,7 @@ class OrganizerAgent:
         self.llm = GeminiClient()
 
     def handle_query(self, user_input: str, action: str = None, keywords: list = None, processed_query: str = None) -> str:
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_time = format_ist_time()
         effective_query = processed_query if processed_query else user_input
         keywords = keywords or []
 

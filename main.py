@@ -4,14 +4,15 @@ from pydantic import BaseModel
 import os
 import traceback
 from contextlib import asynccontextmanager
-from app.core.database import SupabaseClient
-from app.agents.router import RouterAgent
-from app.agents.analyst import AnalystAgent
-from app.agents.archivist import ArchivistAgent
-from app.agents.organizer import OrganizerAgent
-from app.agents.general import GeneralAgent
+from app.core.database_v2 import SupabaseV2Client
+from app.agents.v2_router import V2RouterAgent
+from app.agents.v2_analyst import V2AnalystAgent
+from app.agents.v2_archivist import V2ArchivistAgent
+from app.agents.v2_organizer import V2OrganizerAgent
+from app.agents.v2_general import V2GeneralAgent
 from app.tools.news_api import scheduler, update_news_cache
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.time_utils import format_ist_time
 
 # Load environment variables
 load_dotenv()
@@ -38,12 +39,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_client = SupabaseClient()
-router_agent = RouterAgent()
-analyst_agent = AnalystAgent()
-archivist_agent = ArchivistAgent()
-organizer_agent = OrganizerAgent()
-general_agent = GeneralAgent()
+db_client = SupabaseV2Client()
+router_agent = V2RouterAgent()
+analyst_agent = V2AnalystAgent()
+archivist_agent = V2ArchivistAgent()
+organizer_agent = V2OrganizerAgent()
+general_agent = V2GeneralAgent()
 
 
 class ChatRequest(BaseModel):
@@ -53,8 +54,10 @@ class ChatRequest(BaseModel):
 @app.get("/")
 def root():
     return {
-        "status": "Omni-Assistant Online",
-        "version": "3.0.0-COGNITIVE",
+        "status": "Omni-Agent V2 Neural Hub Online",
+        "message": "Welcome to the future of cognitive assistance.",
+        "version": "2.0.0--COGNITIVE",
+        "standard": "IST (Asia/Kolkata)",
         "endpoints": ["/health", "/chat", "/tasks", "/knowledge", "/api/briefing"]
     }
 
@@ -89,7 +92,7 @@ def list_tasks():
 
 @app.get("/knowledge")
 def list_knowledge():
-    """Return all knowledge base entries, newest first."""
+    """Return all knowledge base entries, newest first. (Fallback for v1 compatibility)"""
     try:
         records = db_client.get_data('knowledge_base', {"limit": 200})
         if records:
@@ -98,6 +101,18 @@ def list_knowledge():
     except Exception as e:
         print(f"Knowledge List Error: {e}")
         return {"knowledge": [], "error": str(e)}
+
+@app.get("/v2/memories")
+def list_v2_memories():
+    """Return all V2 memories, newest first."""
+    try:
+        records = db_client.get_data('v2_memories', {"limit": 200})
+        if records:
+            records.sort(key=lambda k: k.get('created_at', ''), reverse=True)
+        return {"memories": records or []}
+    except Exception as e:
+        print(f"V2 Memories List Error: {e}")
+        return {"memories": [], "error": str(e)}
 
 
 @app.patch("/tasks/update")

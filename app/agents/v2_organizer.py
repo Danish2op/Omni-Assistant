@@ -6,7 +6,7 @@ Same CRUD logic as V1 but with resilient error handling.
 """
 
 import json
-from datetime import datetime
+from app.core.time_utils import format_ist_time
 from app.core.database_v2 import SupabaseV2Client
 from app.core.llm_v2 import MultiModelClient, AgentRole
 
@@ -31,7 +31,7 @@ class V2OrganizerAgent:
         keywords: list = None,
         processed_query: str = None,
     ) -> str:
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_time = format_ist_time()
         effective_query = processed_query if processed_query else user_input
         keywords = keywords or []
 
@@ -60,16 +60,22 @@ class V2OrganizerAgent:
 
     def _create_task(self, effective_query: str, raw_input: str, current_time: str) -> str:
         extract_prompt = (
-            f"Reference Time: {current_time}\n"
-            f"Query/Context: {effective_query}\n\n"
-            "Extract into JSON: {'task_name', 'due_date', 'priority'}."
+            f"Current Time (IST): {current_time}\n"
+            f"User Query: {raw_input}\n"
+            f"Processing Context: {effective_query}\n\n"
+            "MISSION: Extract task details into JSON.\n"
+            "RULES:\n"
+            "1. 'task_name': Clear title of the task.\n"
+            "2. 'due_date': ISO 8601 format (e.g., '2024-05-13T09:00:00+05:30'). If no time is specified, default to 09:00:00 IST on the target date.\n"
+            "3. 'priority': 'high', 'medium', or 'low'.\n\n"
+            "Return ONLY JSON."
         )
         extract_response = self.llm.generate(
             prompt=extract_prompt,
-            system_instruction="Provide ONLY valid JSON.",
+            system_instruction="You are a precise data extractor. Output ONLY valid JSON.",
             role=AgentRole.GENERALIST,
             max_tokens=256,
-            temperature=0.2,
+            temperature=0.1,
         )
 
         try:

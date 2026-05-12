@@ -108,8 +108,12 @@ class V2RouterAgent:
         intent, action, keywords, refined_query.
         """
         try:
+            from app.core.time_utils import format_ist_time
+            current_time = format_ist_time()
+            prompt_with_time = f"Reference Time (IST): {current_time}\n\nUser Input: {user_input}"
+
             raw_response = self.llm.generate(
-                prompt=user_input,
+                prompt=prompt_with_time,
                 system_instruction=V2_ROUTER_SYSTEM_PROMPT,
                 role=AgentRole.ORCHESTRATOR,
                 max_tokens=512,
