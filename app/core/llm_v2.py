@@ -21,6 +21,7 @@ class AgentRole(Enum):
     CODER = "coder"
     RESEARCHER = "researcher"
     GENERALIST = "generalist"
+    COMMUNICATOR = "communicator"
 
 
 # Per-role fallback cascades — all free-tier models
@@ -41,6 +42,11 @@ MODEL_REGISTRY = {
         "google/gemini-2.0-flash-001",
     ],
     AgentRole.GENERALIST: [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemini-2.0-flash-001",
+    ],
+    AgentRole.COMMUNICATOR: [
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
         "google/gemini-2.0-flash-001",
