@@ -18,7 +18,7 @@ class TaskPlan(BaseModel):
     """Single task in the execution plan."""
     intent: str = Field(
         ...,
-        description="Target agent: ANALYST, ARCHIVIST, ORGANIZER, CODER, RESEARCHER, GENERAL"
+        description="Target agent: ANALYST, ARCHIVIST, ORGANIZER, CODER, RESEARCHER, COMMUNICATOR, GENERAL"
     )
     action: str = Field(
         default="CHAT",
@@ -46,6 +46,7 @@ INTENT + ACTION VOCABULARY:
 - ANALYST: RESEARCH (news, markets, web search, general info lookup)
 - CODER: CODE (write code, debug, explain code, technical implementation)
 - RESEARCHER: DEEP_RESEARCH (complex multi-step research requiring reasoning and synthesis)
+- COMMUNICATOR: EMAIL, REMIND, SCHEDULE (sending emails, scheduling routines/reminders)
 - GENERAL: CHAT, CLARIFY (greetings, meta-questions, ambiguous input)
 
 ROUTING RULES:
@@ -53,7 +54,8 @@ ROUTING RULES:
 - "Research X deeply", "compare A vs B", "analyze the pros and cons" → RESEARCHER/DEEP_RESEARCH
 - "Latest news on X", "what happened with Y", weather, market data → ANALYST/RESEARCH
 - Task CRUD operations → ORGANIZER
-- Memory save/recall or "remind me", "what did I say about X" → ARCHIVIST/RETRIEVE or ARCHIVIST/STORE
+- Memory save/recall or "what did I say about X" → ARCHIVIST/RETRIEVE or ARCHIVIST/STORE
+- "Send an email to X", "remind me to Y at 9pm", "set up a daily news email" → COMMUNICATOR
 - Greetings, vague input → GENERAL/CHAT or GENERAL/CLARIFY
 - MULTI-INTENT REQUESTS: If the user asks for two or more distinct things (e.g., "search for X and save Y"), decompose them into a LIST of tasks. DO NOT combine them into one.
 

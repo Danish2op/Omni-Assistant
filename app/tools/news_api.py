@@ -24,7 +24,7 @@ from dateutil import parser as date_parser
 import feedparser
 import requests
 import re
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from app.core.scheduler_v2 import scheduler_instance
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request, Query, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -137,8 +137,8 @@ news_storage: deque = deque(maxlen=MAX_NEWS_ITEMS)
 # Set of URL hashes for O(1) duplicate detection
 seen_urls: Set[str] = set()
 
-# Initialize Scheduler
-scheduler = AsyncIOScheduler()
+# Using global scheduler
+scheduler = scheduler_instance.scheduler
 
 async def update_news_cache():
     """
@@ -699,16 +699,16 @@ async def startup_event():
     initial_news_by_source = await fetch_all_feeds()
     update_news_storage(initial_news_by_source)
     
-    # Start scheduler
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(
+    # Start global scheduler
+    scheduler_instance.scheduler.add_job(
         scheduled_update,
         "interval",
         seconds=UPDATE_INTERVAL_SECONDS,
-        id="news_update_job"
+        id="news_update_job",
+        replace_existing=True
     )
-    scheduler.start()
-    print(f"⏰ Scheduler started (updates every {UPDATE_INTERVAL_SECONDS}s)")
+    scheduler_instance.start()
+    print(f"⏰ Global Scheduler started (updates every {UPDATE_INTERVAL_SECONDS}s)")
 
 
 @app.on_event("shutdown")

@@ -22,6 +22,7 @@ from app.agents.v2_router import V2RouterAgent
 from app.agents.v2_analyst import V2AnalystAgent
 from app.agents.v2_archivist import V2ArchivistAgent
 from app.agents.v2_organizer import V2OrganizerAgent
+from app.agents.v2_emailer import V2EmailerAgent
 from app.agents.v2_general import V2GeneralAgent
 from app.core.llm_v2 import MultiModelClient, AgentRole
 from app.tools.news_api import scheduler, update_news_cache
@@ -58,6 +59,7 @@ router_agent = V2RouterAgent()
 analyst_agent = V2AnalystAgent()
 archivist_agent = V2ArchivistAgent()
 organizer_agent = V2OrganizerAgent()
+emailer_agent = V2EmailerAgent()
 general_agent = V2GeneralAgent()
 coder_llm = MultiModelClient()  # Direct LLM for CODER/RESEARCHER roles
 
@@ -81,7 +83,7 @@ def root():
         "architecture": {
             "router": "Gemma-4 Intent Classifier",
             "models": "Multi-model with fallback cascades",
-            "agents": ["ANALYST", "ARCHIVIST", "ORGANIZER", "CODER", "RESEARCHER", "GENERAL"],
+            "agents": ["ANALYST", "ARCHIVIST", "ORGANIZER", "COMMUNICATOR", "CODER", "RESEARCHER", "GENERAL"],
         },
         "endpoints": ["/health", "/chat", "/chat/stream", "/tasks", "/knowledge", "/v2/memories", "/api/briefing"],
     }
@@ -246,6 +248,7 @@ def chat(request: ChatRequest):
                     "ANALYST": "Research & News",
                     "ARCHIVIST": "Memory",
                     "ORGANIZER": "Task Manager",
+                    "COMMUNICATOR": "Email & Reminders",
                     "CODER": "Code Assistant",
                     "RESEARCHER": "Deep Research",
                     "GENERAL": "General Assistant",
@@ -331,6 +334,7 @@ def chat_stream(request: ChatRequest):
                     "ANALYST": "Research & News",
                     "ARCHIVIST": "Memory",
                     "ORGANIZER": "Task Manager",
+                    "COMMUNICATOR": "Email & Reminders",
                     "CODER": "Code Assistant",
                     "RESEARCHER": "Deep Research",
                     "GENERAL": "General Assistant",
@@ -408,6 +412,11 @@ def _dispatch_agent(
 
     elif intent == "ORGANIZER":
         return organizer_agent.handle_query(
+            raw_input, action=action, keywords=keywords, processed_query=agent_query
+        )
+
+    elif intent == "COMMUNICATOR":
+        return emailer_agent.handle_query(
             raw_input, action=action, keywords=keywords, processed_query=agent_query
         )
 
