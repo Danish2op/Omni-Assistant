@@ -219,18 +219,22 @@ class V2EmailerAgent:
                 return "I need to know what to schedule, how often (daily/weekly), and at what time (e.g. 9:00 AM)."
 
             # Resolve contact
-            recipient_email = os.environ.get("USER_EMAIL", "danishsharma@example.com")
+            recipient_email = os.environ.get("USER_EMAIL")
+            if not recipient_email:
+                # Check for "self" contact
+                self_contact = self.get_contact("self")
+                if self_contact:
+                    recipient_email = self_contact.get("email")
+            
             if name and name.lower() not in ["me", "self"]:
                 contact = self.get_contact(name)
                 if contact:
                     recipient_email = contact.get("email")
                 else:
                     return f"I couldn't find '{name}' in your contacts. I'll need their email to schedule this routine."
-            else:
-                # Check for "self" contact
-                self_contact = self.get_contact("self")
-                if self_contact:
-                    recipient_email = self_contact.get("email")
+            
+            if not recipient_email:
+                return "⚠️ I don't know your email address! Please set USER_EMAIL in your environment (e.g., Render settings) or add a 'self' contact with your email."
 
             # Parse time
             try:
