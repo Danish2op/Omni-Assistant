@@ -36,14 +36,22 @@ class GmailTool:
         msg.attach(part)
 
         try:
-            # Connect to SMTP server using SSL
-            server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
+            import socket
+            # Force IPv4 by resolving the hostname manually
+            addr_info = socket.getaddrinfo(self.smtp_server, self.smtp_port, socket.AF_INET, socket.SOCK_STREAM)
+            ipv4_addr = addr_info[0][4][0]
+            print(f"[GmailTool] Resolved {self.smtp_server} to IPv4: {ipv4_addr}")
+            
+            # Connect to SMTP server using SSL on IPv4
+            server = smtplib.SMTP_SSL(ipv4_addr, self.smtp_port, timeout=15)
             server.login(self.email_address, self.app_password)
             
             # Send email
             server.sendmail(self.email_address, to, msg.as_string())
             server.quit()
+            print(f"[GmailTool] Email successfully sent to {to}")
             return True
         except Exception as e:
-            print(f"[GmailTool] Error sending email: {e}")
+            print(f"[GmailTool] Detailed error sending email: {type(e).__name__}: {e}")
             raise e
+#1b557d30-3bcb-47f2-9a5f-b4d127410cf6

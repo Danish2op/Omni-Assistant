@@ -97,13 +97,18 @@ class SupabaseV2Client:
             if not keywords:
                 return self.get_data(table_name, {"limit": limit})
             
-            # Search both the primary text column, the metadata JSONB tags array, and category
-            or_clauses = ",".join([
-                f"{column}.ilike.%{kw}%,"
-                f"metadata->>tags.ilike.%{kw}%,"
-                f"metadata->>category.ilike.%{kw}%"
-                for kw in keywords
-            ])
+            # tables that support metadata searching
+            supports_metadata = table_name.lower() in ["memories", "tasks"]
+            
+            if supports_metadata:
+                or_clauses = ",".join([
+                    f"{column}.ilike.%{kw}%,"
+                    f"metadata->>tags.ilike.%{kw}%,"
+                    f"metadata->>category.ilike.%{kw}%"
+                    for kw in keywords
+                ])
+            else:
+                or_clauses = ",".join([f"{column}.ilike.%{kw}%" for kw in keywords])
             
             response = (
                 self.client.table(table_name)
