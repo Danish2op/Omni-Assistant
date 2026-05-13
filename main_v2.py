@@ -26,7 +26,8 @@ from app.agents.v2_organizer import V2OrganizerAgent
 from app.agents.v2_emailer import V2EmailerAgent
 from app.agents.v2_general import V2GeneralAgent
 from app.core.llm_v2 import MultiModelClient, AgentRole
-from app.tools.news_api import scheduler, update_news_cache
+from app.core.scheduler_v2 import scheduler_instance
+from app.tools.news_api import update_news_cache
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
@@ -36,17 +37,26 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     """Startup and Shutdown logic for V2 Neural Hub."""
     print("🧠 Omni-Agent V2: Starting...")
-    # News cache scheduler
-    scheduler.add_job(update_news_cache, "interval", seconds=60)
-    scheduler.start()
-    await update_news_cache()
-    # Routine/Reminder scheduler (APScheduler for one-off and recurring jobs)
-    from app.core.scheduler_v2 import scheduler_instance
+    
+    # 1. Start the persistent scheduler first
     scheduler_instance.start()
+    
+    # 2. Register/Refresh system jobs
+    # The scheduler property returns the underlying AsyncIOScheduler
+    scheduler_instance.scheduler.add_job(
+        update_news_cache, 
+        "interval", 
+        seconds=60,
+        id="sys_news_cache",
+        replace_existing=True
+    )
+    
+    # Initial news fetch
+    await update_news_cache()
+    
     yield
     print("🧠 Omni-Agent V2: Shutting down...")
     scheduler_instance.shutdown()
-    scheduler.shutdown()
 
 
 app = FastAPI(lifespan=lifespan)

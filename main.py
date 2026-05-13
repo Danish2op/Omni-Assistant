@@ -11,7 +11,8 @@ from app.agents.v2_archivist import V2ArchivistAgent
 from app.agents.v2_organizer import V2OrganizerAgent
 from app.agents.v2_emailer import V2EmailerAgent
 from app.agents.v2_general import V2GeneralAgent
-from app.tools.news_api import scheduler, update_news_cache
+from app.core.scheduler_v2 import scheduler_instance
+from app.tools.news_api import update_news_cache
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.time_utils import format_ist_time
 
@@ -21,13 +22,31 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and Shutdown logic for the Neural Hub."""
-    print("Neural Hub: Starting background tasks...")
-    scheduler.add_job(update_news_cache, 'interval', seconds=60)
-    scheduler.start()
-    await update_news_cache()
+    print("Neural Hub: Initializing persistent scheduler...")
+    
+    # Register core system jobs
+    try:
+        # 1. News Cache Update
+        scheduler_instance.scheduler.add_job(
+            update_news_cache, 
+            'interval', 
+            seconds=60,
+            id="sys_news_cache",
+            replace_existing=True
+        )
+        
+        # Start the scheduler
+        scheduler_instance.start()
+        
+        # Initial news fetch
+        await update_news_cache()
+    except Exception as e:
+        print(f"!!! [Lifespan] Scheduler start failed: {e}")
+
     yield
+    
     print("Neural Hub: Shutting down scheduler...")
-    scheduler.shutdown()
+    scheduler_instance.shutdown()
 
 app = FastAPI(lifespan=lifespan)
 

@@ -196,14 +196,24 @@ class V2EmailerAgent:
                     return f"I couldn't understand the timestamp '{abs_time_str}'. Try 'in 10 minutes'."
 
             if run_at:
+                # Check persistence status
+                db_url = os.environ.get("SUPABASE_DB_URL")
+                storage_type = "persistent" if db_url else "local (non-persistent)"
+                
                 from app.core.jobs_v2 import async_send_routine_email
-                scheduler_instance.scheduler.add_job(
-                    async_send_routine_email,
-                    'date',
-                    run_date=run_at,
-                    args=[user_email, "Omni Reminder", f"<p>Reminder: {message}</p>"]
-                )
-                return f"✅ Set a reminder for {log_msg} to {message}."
+                try:
+                    scheduler_instance.scheduler.add_job(
+                        async_send_routine_email,
+                        'date',
+                        run_date=run_at,
+                        args=[user_email, "Omni Reminder", f"<h3>Reminder</h3><p>{message}</p>"],
+                        id=f"remind_{int(run_at.timestamp())}",
+                        replace_existing=True
+                    )
+                    return f"✅ Set a {storage_type} reminder for {log_msg} to {message}."
+                except Exception as sched_err:
+                    print(f"[Communicator] Scheduler Error: {sched_err}")
+                    return f"⚠️ I couldn't schedule the reminder: {sched_err}"
             
             return "I couldn't quite figure out when to remind you. Could you be more specific (e.g. 'in 10 minutes')?"
 

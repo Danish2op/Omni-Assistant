@@ -137,8 +137,7 @@ news_storage: deque = deque(maxlen=MAX_NEWS_ITEMS)
 # Set of URL hashes for O(1) duplicate detection
 seen_urls: Set[str] = set()
 
-# Using global scheduler
-scheduler = scheduler_instance.scheduler
+# Using global scheduler_instance for background jobs
 
 async def update_news_cache():
     """
