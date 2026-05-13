@@ -11,3 +11,5 @@ apscheduler
 python-dateutil
 duckduckgo-search
 tavily-python
+sqlalchemy
+psycopg2-binary
