@@ -50,7 +50,7 @@ class V2EmailerAgent:
         effective_query = processed_query if processed_query else user_input
         
         if action == "EMAIL":
-            yield from self._handle_email(effective_query)
+            yield from self._handle_email(effective_query, user_input)
         elif action == "REMIND":
             yield "TEXT", self._handle_reminder(effective_query)
         elif action == "SCHEDULE":
@@ -58,12 +58,14 @@ class V2EmailerAgent:
         else:
             yield "TEXT", self._chat(effective_query)
 
-    def _handle_email(self, query: str):
+    def _handle_email(self, query: str, raw_user_input: str = None):
         """Resolve contact, compose email via LLM, and send with progress logs."""
         yield "LOG", "🔍 Analyzing email request..."
         
         # 1. Extract recipient and intent from query
-        extraction_prompt = f"""Extract email details from this query: "{query}"
+        # Use raw_user_input if available for better extraction of technical details
+        search_query = raw_user_input if raw_user_input else query
+        extraction_prompt = f"""Extract email details from this query: "{search_query}"
         Output ONLY valid JSON: {{"recipient_name": "string", "subject": "string", "body_intent": "string"}}
         If any field is missing, use null."""
         
@@ -82,8 +84,8 @@ class V2EmailerAgent:
             email_addr = None
             
             # Check if extracted name is actually an email
-            if "@" in name and "." in name:
-                email_addr = name
+            if name and "@" in name and "." in name:
+                email_addr = name.strip()
                 yield "LOG", f"📧 Using direct email address: {email_addr}"
             else:
                 yield "LOG", f"👤 Resolving contact for '{name}'..."
@@ -92,9 +94,10 @@ class V2EmailerAgent:
                 if contact:
                     email_addr = contact.get("email")
                 else:
-                    # Final fallback: Look for ANY email address in the raw query
+                    # Final fallback: Look for ANY email address in the raw query OR refined query
                     import re
-                    emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', query)
+                    all_text = f"{query} {raw_user_input or ''}"
+                    emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', all_text)
                     if emails:
                         email_addr = emails[0]
                         yield "LOG", f"🔍 Detected email in message: {email_addr}"
