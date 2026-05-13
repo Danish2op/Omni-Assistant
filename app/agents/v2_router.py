@@ -58,11 +58,15 @@ ROUTING RULES:
 - "Send an email to X", "remind me to Y at 9pm", "set up a daily news email" → COMMUNICATOR
 - Greetings, vague input → GENERAL/CHAT or GENERAL/CLARIFY
 - MULTI-INTENT REQUESTS: If the user asks for two or more distinct things (e.g., "search for X and save Y"), decompose them into a LIST of tasks. DO NOT combine them into one.
+- CONTEXTUAL FOLLOW-UPS: If the user provides information (like an email address, contact name, or specific detail) that was previously requested by an agent or is a clear continuation of a previous task, ROUTE it back to the agent that needed it. CRITICAL: In the 'refined_query', reconstruct the FULL task using the new info (e.g., if user provides an email, the refined_query should be 'Send the email to [email] with the original intent').
 
 OUTPUT FORMAT:
 {"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": ["SpaceX"], "refined_query": "Search latest SpaceX news"}], "reasoning": "User wants news"}
 
 EXAMPLES:
+
+User: "paryag.sahni@thefuture.university" (History: AI asked "What is Paryag's email?")
+{"tasks": [{"intent": "COMMUNICATOR", "action": "EMAIL", "keywords": ["paryag.sahni@thefuture.university"], "refined_query": "Send email to Paryag at paryag.sahni@thefuture.university reminding him to work hard"}], "reasoning": "User provided requested email; resuming original email task."}
 
 User: "What's the weather in Tokyo and add a task to book flights"
 {"tasks": [
@@ -102,7 +106,7 @@ class V2RouterAgent:
     def __init__(self):
         self.llm = MultiModelClient()
 
-    def route_request(self, user_input: str) -> dict:
+    def route_request(self, user_input: str, history: List[dict] = None) -> dict:
         """
         Classify user intent and produce a validated execution plan.
 
@@ -112,14 +116,25 @@ class V2RouterAgent:
         try:
             from app.core.time_utils import format_ist_time
             current_time = format_ist_time()
-            prompt_with_time = f"Reference Time (IST): {current_time}\n\nUser Input: {user_input}"
+            
+            # Format history for the prompt
+            history_str = ""
+            if history:
+                history_str = "Recent Conversation History:\n"
+                for msg in history[-5:]: # Last 5 messages for context
+                    role = msg.get("role", "user").upper()
+                    content = msg.get("content", "")
+                    history_str += f"{role}: {content}\n"
+                history_str += "\n"
+
+            prompt = f"Reference Time (IST): {current_time}\n\n{history_str}User Input: {user_input}"
 
             raw_response = self.llm.generate(
-                prompt=prompt_with_time,
+                prompt=prompt,
                 system_instruction=V2_ROUTER_SYSTEM_PROMPT,
                 role=AgentRole.ORCHESTRATOR,
                 max_tokens=512,
-                temperature=0.3,  # Low temp for deterministic classification
+                temperature=0.3,
             )
 
             # Clean JSON from LLM response

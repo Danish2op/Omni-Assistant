@@ -87,7 +87,10 @@ export function useChatStream({ apiUrl, onRefreshData }: UseChatStreamOptions) {
           response = await fetch(`${apiUrl}/chat/stream`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: userMessage }),
+            body: JSON.stringify({ 
+              message: userMessage,
+              history: messages.map(m => ({ role: m.role, content: m.text }))
+            }),
             signal: controller.signal,
           });
           clearTimeout(timeout);
@@ -166,7 +169,10 @@ export function useChatStream({ apiUrl, onRefreshData }: UseChatStreamOptions) {
     } catch (error) {
       setProcessLogs((prev) => [...prev, { message: `Streaming failed, falling back to standard request...`, timestamp: Date.now() }]);
       try {
-        const fallbackRes = await axios.post(`${apiUrl}/chat`, { message: userMessage });
+        const fallbackRes = await axios.post(`${apiUrl}/chat`, { 
+          message: userMessage,
+          history: messages.map(m => ({ role: m.role, content: m.text }))
+        });
         const data = fallbackRes.data;
         setMessages((prev) => [
           ...prev,
@@ -192,7 +198,7 @@ export function useChatStream({ apiUrl, onRefreshData }: UseChatStreamOptions) {
       }
       setIsLoading(false);
     }
-  }, [apiUrl, startStream, handleStreamEvent, onRefreshData]);
+  }, [apiUrl, startStream, handleStreamEvent, onRefreshData, messages]);
 
   return {
     isLoading,

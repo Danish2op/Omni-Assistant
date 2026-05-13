@@ -63,9 +63,12 @@ class V2EmailerAgent:
         yield "LOG", "🔍 Analyzing email request..."
         
         # 1. Extract recipient and intent from query
-        # Use raw_user_input if available for better extraction of technical details
-        search_query = raw_user_input if raw_user_input else query
-        extraction_prompt = f"""Extract email details from this query: "{search_query}"
+        # We combine both to ensure we have the refined context AND the raw technical details
+        combined_context = f"Refined Task: {query}\nRaw Input: {raw_user_input or ''}"
+        extraction_prompt = f"""Extract email details from this context:
+        ---
+        {combined_context}
+        ---
         Output ONLY valid JSON: {{"recipient_name": "string", "subject": "string", "body_intent": "string"}}
         If any field is missing, use null."""
         

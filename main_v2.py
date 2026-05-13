@@ -66,6 +66,7 @@ coder_llm = MultiModelClient()  # Direct LLM for CODER/RESEARCHER roles
 
 class ChatRequest(BaseModel):
     message: str
+    history: Optional[List[Dict[str, str]]] = None
 
 
 class TaskUpdateRequest(BaseModel):
@@ -209,7 +210,7 @@ def chat(request: ChatRequest):
     """
     try:
         # Step 1: V2 Router classifies intent
-        route_result = router_agent.route_request(request.message)
+        route_result = router_agent.route_request(request.message, history=request.history)
         tasks = route_result.get("tasks", [])
 
         execution_log = []
@@ -305,8 +306,8 @@ def chat_stream(request: ChatRequest):
     """
     def event_generator():
         try:
-            # Step 1: Route
-            route_result = router_agent.route_request(request.message)
+            # Step 1: Route with history
+            route_result = router_agent.route_request(request.message, history=request.history)
             tasks = route_result.get("tasks", [])
 
             if not tasks:
