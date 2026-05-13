@@ -140,26 +140,37 @@ class V2EmailerAgent:
 
     def _handle_reminder(self, query: str) -> str:
         """Schedule a one-off reminder email."""
-        extraction_prompt = f"""Extract reminder details from: "{query}"
-        Output ONLY valid JSON: {{"message": "string", "wait_minutes": int, "absolute_time": "ISO format string or null"}}
-        If it's relative (e.g. 'in 5 minutes'), use wait_minutes. If absolute, use absolute_time.
-        Current time (IST): {datetime.now().isoformat()}"""
+        # --- Layer 1: Heuristic Extraction (Bypass LLM) ---
+        heuristics = self._heuristic_extract_reminder(query)
+        details = None
+        if heuristics:
+            print(f"[Communicator] Heuristic reminder match: {heuristics['message']}")
+            details = heuristics
+        else:
+            # --- Layer 2: LLM Extraction ---
+            extraction_prompt = f"""Extract reminder details from: "{query}"
+            Output ONLY valid JSON: {{"message": "string", "wait_minutes": int, "absolute_time": "ISO format string or null"}}
+            If it's relative (e.g. 'in 5 minutes'), use wait_minutes. If absolute, use absolute_time.
+            Current time (IST): {datetime.now().isoformat()}"""
+            
+            try:
+                raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
+                details_str = self._extract_json(raw_extract)
+                if details_str:
+                    details = json.loads(details_str)
+            except Exception as e:
+                print(f"[Communicator] LLM Reminder Extraction failed: {e}")
+
+        if not details:
+            return "I'm having trouble understanding the time and message for the reminder. Could you try saying it differently (e.g., 'remind me in 5 minutes')?"
         
         try:
-            raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
-            details_str = self._extract_json(raw_extract)
-            if not details_str:
-                return "I'm having trouble understanding the time and message for the reminder. Could you try saying it differently (e.g., 'remind me in 5 minutes')?"
-            
-            details = json.loads(details_str)
             message = details.get("message") or query
             wait_min = details.get("wait_minutes")
+            abs_time_str = details.get("absolute_time")
             
             # Resolve user email
-            user_email = os.environ.get("USER_EMAIL")
-            if not user_email:
-                user_email = os.environ.get("GMAIL_ADDRESS")
-                
+            user_email = os.environ.get("USER_EMAIL") or os.environ.get("GMAIL_ADDRESS")
             if not user_email:
                 self_contact = self.get_contact("self")
                 if self_contact:
@@ -167,15 +178,104 @@ class V2EmailerAgent:
             
             if not user_email:
                 return "⚠️ I don't know your email address! Please set USER_EMAIL in your .env or add a 'self' contact with your email."
+
+            # Calculate run time
+            run_at = None
+            log_msg = ""
             
             if wait_min:
-                self._schedule_reminder_job(user_email, "Omni Reminder", f"<p>Reminder: {message}</p>", wait_min)
-                return f"✅ Set a reminder for {wait_min} minutes from now."
+                run_at = datetime.now() + timedelta(minutes=int(wait_min))
+                log_msg = f"in {wait_min} minutes"
+            elif abs_time_str:
+                try:
+                    # ISO format parsing
+                    run_at = datetime.fromisoformat(abs_time_str.replace("Z", "+00:00"))
+                    log_msg = f"at {abs_time_str}"
+                except:
+                    # Fallback for simple HH:MM if LLM returned it
+                    return f"I couldn't understand the timestamp '{abs_time_str}'. Try 'in 10 minutes'."
+
+            if run_at:
+                from app.core.jobs_v2 import async_send_routine_email
+                scheduler_instance.scheduler.add_job(
+                    async_send_routine_email,
+                    'date',
+                    run_date=run_at,
+                    args=[user_email, "Omni Reminder", f"<p>Reminder: {message}</p>"]
+                )
+                return f"✅ Set a reminder for {log_msg} to {message}."
             
             return "I couldn't quite figure out when to remind you. Could you be more specific (e.g. 'in 10 minutes')?"
 
         except Exception as e:
             return f"⚠️ Error scheduling reminder: {str(e)}"
+
+    def _heuristic_extract_reminder(self, query: str) -> Optional[dict]:
+        """Regex-based extraction for simple 'remind me in X minutes' patterns."""
+        import re
+        text = query.lower()
+        
+        # Pattern: remind me in 5 minutes to turn off light
+        # Pattern: remind me in 5 mins to turn off light
+        match = re.search(r'remind me in (\d+)\s*(min|minute|mins|minutes|hr|hour|hrs|hours)', text)
+        if match:
+            amount = int(match.group(1))
+            unit = match.group(2)
+            
+            wait_minutes = amount
+            if 'hr' in unit or 'hour' in unit:
+                wait_minutes = amount * 60
+            
+            # Extract message: everything after 'to ' or 'about '
+            msg_match = re.search(r'(?:to|about|that)\s+(.*)', text)
+            message = msg_match.group(1).strip() if msg_match else query
+            
+            return {
+                "message": message,
+                "wait_minutes": wait_minutes,
+                "absolute_time": None
+            }
+        
+        # Pattern: remind me at 11:05 pm to X
+        abs_match = re.search(r'remind me at (\d{1,2}(?::\d{2})?\s*(?:am|pm)?)', text)
+        if not abs_match:
+            # Check for just 'at 11:05 pm'
+            abs_match = re.search(r'at (\d{1,2}(?::\d{2})?\s*(?:am|pm)?)', text)
+
+        if abs_match:
+            time_str = abs_match.group(1).upper()
+            msg_match = re.search(r'(?:to|about|that)\s+(.*)', text)
+            message = msg_match.group(1).strip() if msg_match else query
+            
+            try:
+                clean_time = time_str.strip()
+                is_pm = "PM" in clean_time
+                is_am = "AM" in clean_time
+                time_nums = clean_time.replace("AM", "").replace("PM", "").strip()
+                
+                if ":" in time_nums:
+                    hour, minute = map(int, time_nums.split(":"))
+                else:
+                    hour = int(time_nums)
+                    minute = 0
+                
+                if is_pm and hour < 12: hour += 12
+                elif is_am and hour == 12: hour = 0
+                
+                now = datetime.now()
+                target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if target < now: # If time has passed today, assume tomorrow
+                    target += timedelta(days=1)
+                
+                return {
+                    "message": message,
+                    "wait_minutes": None,
+                    "absolute_time": target.isoformat()
+                }
+            except:
+                pass
+                
+        return None
 
     def _schedule_reminder_job(self, to: str, subject: str, html_content: str, wait_minutes: int):
         """Helper to schedule the reminder job via APScheduler."""
