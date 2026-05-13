@@ -13,3 +13,4 @@ duckduckgo-search
 tavily-python
 sqlalchemy
 psycopg2-binary
+resend

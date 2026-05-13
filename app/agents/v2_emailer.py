@@ -3,7 +3,7 @@ import os
 from typing import List, Optional, Dict, Any
 from app.core.llm_v2 import MultiModelClient, AgentRole
 from app.core.database_v2 import SupabaseV2Client
-from app.tools.gmail_tool import GmailTool
+from app.tools.resend_tool import ResendTool
 from app.core.scheduler_v2 import scheduler_instance
 from datetime import datetime, timedelta
 
@@ -16,7 +16,7 @@ class V2EmailerAgent:
     def __init__(self):
         self.llm = MultiModelClient()
         self.db = SupabaseV2Client()
-        self.gmail = GmailTool()
+        self.resend = ResendTool()
         self.role = AgentRole.COMMUNICATOR
 
     def handle_query(
@@ -122,7 +122,7 @@ class V2EmailerAgent:
             
             yield "LOG", f"📧 Sending email to {email_addr}..."
             # 4. Send
-            success = self.gmail.send_email(
+            success = self.resend.send_email(
                 to=email_addr,
                 subject=details.get("subject") or "Message from Omni",
                 html_content=html_body

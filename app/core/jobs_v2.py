@@ -1,14 +1,14 @@
 import asyncio
-from app.tools.gmail_tool import GmailTool
+from app.tools.resend_tool import ResendTool
 
 def send_routine_email(to: str, subject: str, html_content: str):
     """
     Synchronous wrapper for scheduled email jobs.
     """
-    gmail = GmailTool()
+    resend = ResendTool()
     print(f"[Jobs V2] Executing scheduled email to {to}...")
     try:
-        success = gmail.send_email(to, subject, html_content)
+        success = resend.send_email(to, subject, html_content)
         if success:
             print(f"[Jobs V2] Success: Routine email sent to {to}")
     except Exception as e:
@@ -49,9 +49,9 @@ def execute_intelligent_routine(to: str, routine_type: str, params: dict):
         print(f"[Jobs V2] Content generation error: {e}")
         content = f"<p>Sorry, I had trouble generating your {routine_type} update today.</p><p>Error: {str(e)}</p>"
 
-    gmail = GmailTool()
+    resend = ResendTool()
     try:
-        success = gmail.send_email(to, subject, content)
+        success = resend.send_email(to, subject, content)
         if success:
             print(f"[Jobs V2] Success: Intelligent routine email sent to {to}")
     except Exception as e:
@@ -59,10 +59,10 @@ def execute_intelligent_routine(to: str, routine_type: str, params: dict):
 
 async def async_send_routine_email(to: str, subject: str, html_content: str):
     """Async version for AsyncIOScheduler."""
-    gmail = GmailTool()
+    resend = ResendTool()
     print(f"[Jobs V2] Executing scheduled email to {to}...")
     try:
-        success = gmail.send_email(to, subject, html_content)
+        success = resend.send_email(to, subject, html_content)
         if success:
             print(f"[Jobs V2] Success: Routine email sent to {to}")
     except Exception as e:
