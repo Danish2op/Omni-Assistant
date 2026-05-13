@@ -1,8 +1,8 @@
 """
 V2 Orchestrator Router — Multi-Model Intent Classifier.
 
-Uses Gemma-4 (ORCHESTRATOR role) for fast intent classification.
-Routes to specialized sub-agents: CODER, RESEARCHER, ANALYST, ARCHIVIST, ORGANIZER, GENERAL.
+Uses verified free-tier models (primary: Gemma-4) for fast intent classification.
+Routes to specialized sub-agents: CODER, RESEARCHER, ANALYST, ARCHIVIST, ORGANIZER, COMMUNICATOR, GENERAL.
 Outputs are Pydantic-validated for deterministic routing.
 """
 
@@ -26,6 +26,7 @@ class TaskPlan(BaseModel):
     )
     keywords: List[str] = Field(default_factory=list)
     refined_query: str = Field(default="")
+    confidence: float = Field(default=1.0, description="0.0 to 1.0 confidence in this classification")
 
 
 class ExecutionPlan(BaseModel):
@@ -36,64 +37,73 @@ class ExecutionPlan(BaseModel):
 
 # ---- System Prompt ----
 
-V2_ROUTER_SYSTEM_PROMPT = """You are the Orchestrator for Omni-Agent V2. Decompose user input into an Execution Plan.
+V2_ROUTER_SYSTEM_PROMPT = """You are the Orchestrator for Omni-Agent V2. Your goal is to decompose user input into a precise Execution Plan.
 
 STRICT OUTPUT RULE: Output ONLY valid JSON. No markdown, no preamble, no explanation.
 
 INTENT + ACTION VOCABULARY:
 - ORGANIZER: CREATE, LIST, FILTER, UPDATE (task management)
-- ARCHIVIST: STORE, RETRIEVE (memory/knowledge base)
-- ANALYST: RESEARCH (news, markets, web search, general info lookup)
-- CODER: CODE (write code, debug, explain code, technical implementation)
-- RESEARCHER: DEEP_RESEARCH (complex multi-step research requiring reasoning and synthesis)
-- COMMUNICATOR: EMAIL, REMIND, SCHEDULE (sending emails, scheduling routines/reminders)
-- GENERAL: CHAT, CLARIFY (greetings, meta-questions, ambiguous input)
+- ARCHIVIST: STORE, RETRIEVE (memory, credentials, notes, knowledge base)
+- ANALYST: RESEARCH (news, markets, web search, current events)
+- CODER: CODE (technical implementation, writing/debugging functions, explaining code logic)
+- RESEARCHER: DEEP_RESEARCH (complex synthesis, multi-step deep dives)
+- COMMUNICATOR: EMAIL, REMIND, SCHEDULE (external communication or temporal triggers)
+- GENERAL: CHAT, CLARIFY (meta-talk, greetings, ambiguous requests)
 
-ROUTING RULES:
-- Simple code questions or "write me a function" → CODER/CODE
-- "Research X deeply", "compare A vs B", "analyze the pros and cons" → RESEARCHER/DEEP_RESEARCH
-- "Latest news on X", "what happened with Y", weather, market data → ANALYST/RESEARCH
-- Task CRUD operations → ORGANIZER
-- Memory save/recall or "what did I say about X" → ARCHIVIST/RETRIEVE or ARCHIVIST/STORE
-- "Send an email to X", "remind me to Y at 9pm", "set up a daily news email" → COMMUNICATOR
-- Greetings, vague input → GENERAL/CHAT or GENERAL/CLARIFY
-- MULTI-INTENT REQUESTS: If the user asks for two or more distinct things (e.g., "search for X and save Y"), decompose them into a LIST of tasks. DO NOT combine them into one.
-- CONTEXTUAL FOLLOW-UPS: If the user provides information (like an email address, contact name, or specific detail) that was previously requested by an agent or is a clear continuation of a previous task, ROUTE it back to the agent that needed it. CRITICAL: In the 'refined_query', reconstruct the FULL task using the new info (e.g., if user provides an email, the refined_query should be 'Send the email to [email] with the original intent').
+--- COGNITIVE HARDENING RULES ---
 
-OUTPUT FORMAT:
-{"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": ["SpaceX"], "refined_query": "Search latest SpaceX news"}], "reasoning": "User wants news"}
+1. ARCHIVIST vs CODER (The "Credential Rule"):
+   - If user says "Remember", "Store", "Save", "Keep note of" followed by technical info (SSH, API keys, IPs, passwords) → ARCHIVIST/STORE.
+   - If user asks "How do I SSH", "Write a script for X", "Debug this code" → CODER/CODE.
+   - NEVER route "Remember my [credential]" to CODER.
+   - EXCEPTION: If the user says "remember" regarding logic, syntax, or code patterns (e.g., "remember to add a try-catch", "remember how we wrote that loop"), route to CODER.
 
-EXAMPLES:
+2. CONTEXT RESET (The "Fresh Start Rule"):
+   - If the User Input starts with "Anyway", "Also", "By the way", "New task", or "Now", treat it as a POTENTIAL context reset.
+   - If User Input is semantically unrelated to the last message in History, IGNORE the history for classification.
 
-User: "paryag.sahni@thefuture.university" (History: AI asked "What is Paryag's email?")
-{"tasks": [{"intent": "COMMUNICATOR", "action": "EMAIL", "keywords": ["paryag.sahni@thefuture.university"], "refined_query": "Send email to Paryag at paryag.sahni@thefuture.university reminding him to work hard"}], "reasoning": "User provided requested email; resuming original email task."}
+3. CONTEXT FOLLOW-UP (The "Greed Rule"):
+   - ONLY reconstruct a task (Contextual Follow-up) if the User Input is EXCLUSIVELY providing info requested in the History (e.g., just an email, a name, or a confirmation).
+   - If the User Input contains a new verb or command, treat it as a NEW task.
 
-User: "What's the weather in Tokyo and add a task to book flights"
-{"tasks": [
-    {"intent": "ANALYST", "action": "RESEARCH", "keywords": ["weather", "Tokyo"], "refined_query": "Current weather in Tokyo"},
-    {"intent": "ORGANIZER", "action": "CREATE", "keywords": ["flights"], "refined_query": "Create task: Book flights to Tokyo"}
-], "reasoning": "Weather lookup + task creation"}
+4. MULTI-INTENT DECOMPOSITION:
+   - If the user says "Email Paryag and also remember my password", create TWO tasks: COMMUNICATOR/EMAIL and ARCHIVIST/STORE.
 
-User: "Check the weather in Punjab then remind me where my key is"
-{"tasks": [
-    {"intent": "ANALYST", "action": "RESEARCH", "keywords": ["weather", "Punjab"], "refined_query": "Current weather in Punjab, India"},
-    {"intent": "ARCHIVIST", "action": "RETRIEVE", "keywords": ["key"], "refined_query": "Where is my key stored?"}
-], "reasoning": "Decomposed into web search and memory retrieval"}
+5. AMBIGUITY & CONFIDENCE (The "Clarify Rule"):
+   - If you are less than 70% sure of the intent, set action="CLARIFY" and intent="GENERAL".
+   - Reasoning must include a brief chain-of-thought.
 
-User: "Write a Python function to sort a list"
-{"tasks": [{"intent": "CODER", "action": "CODE", "keywords": ["python", "sort", "list"], "refined_query": "Write a Python function to sort a list"}], "reasoning": "Code generation request"}
+--- ROUTING LOGIC EXAMPLES ---
 
-User: "What's the latest on OpenAI?"
-{"tasks": [{"intent": "ANALYST", "action": "RESEARCH", "keywords": ["OpenAI", "latest"], "refined_query": "Search latest OpenAI news and updates"}], "reasoning": "News lookup"}
+User: "ssh root@65.109.150.223 pw: 1234. mail it to me"
+History: [User asked about something else]
+{
+  "tasks": [
+    {"intent": "ARCHIVIST", "action": "STORE", "keywords": ["ssh", "credentials"], "refined_query": "Store SSH credentials for 65.109.150.223"},
+    {"intent": "COMMUNICATOR", "action": "EMAIL", "keywords": ["ssh", "credentials"], "refined_query": "Email the SSH credentials to the user"}
+  ],
+  "reasoning": "User wants to store and also email the credentials."
+}
 
-User: "Add a task to review pull requests"
-{"tasks": [{"intent": "ORGANIZER", "action": "CREATE", "keywords": [], "refined_query": "Create task: Review pull requests"}], "reasoning": "Task creation"}
+User: "paryag.sahni@thefuture.university"
+History: [Agent: "What is the email id?"]
+{
+  "tasks": [{"intent": "COMMUNICATOR", "action": "EMAIL", "keywords": [], "refined_query": "Resume email task: Send to paryag.sahni@thefuture.university"}],
+  "reasoning": "Pure follow-up info provided."
+}
 
-User: "Remember my API key is stored in Vault"
-{"tasks": [{"intent": "ARCHIVIST", "action": "STORE", "keywords": [], "refined_query": "Store: API key is stored in Vault"}], "reasoning": "Memory storage"}
+User: "Anyway, write a python function to scrape a site"
+History: [Previous talk about Paryag]
+{
+  "tasks": [{"intent": "CODER", "action": "CODE", "keywords": ["python", "scrape"], "refined_query": "Write a python function for web scraping"}],
+  "reasoning": "User used 'Anyway' to signal a new task, disregarding Paryag context."
+}
 
-User: "Hello"
-{"tasks": [{"intent": "GENERAL", "action": "CHAT", "keywords": [], "refined_query": "Respond to greeting"}], "reasoning": "Greeting"}
+User: "Remember where I kept my car keys"
+{
+  "tasks": [{"intent": "ARCHIVIST", "action": "STORE", "keywords": ["car keys"], "refined_query": "Store memory: Car keys location"}],
+  "reasoning": "Memory storage."
+}
 """
 
 

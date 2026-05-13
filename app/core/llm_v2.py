@@ -25,42 +25,35 @@ class AgentRole(Enum):
     COMMUNICATOR = "communicator"
 
 
-# Per-role fallback cascades — all free-tier models
+# Per-role fallback cascades — all free-tier models (Verified as of 2026-05-13)
 MODEL_REGISTRY = {
     AgentRole.ORCHESTRATOR: [
         "google/gemma-4-26b-a4b-it:free",
-        "google/gemini-2.0-flash-001",
-        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "google/gemma-4-31b-it:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "deepseek/deepseek-r1:free",
         "openrouter/free",
     ],
     AgentRole.CODER: [
         "qwen/qwen3-coder:free",
-        "qwen/qwen-2.5-coder-32b-instruct:free",
-        "meta-llama/llama-3.1-405b-instruct:free",
-        "google/gemini-2.0-flash-001",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemma-4-31b-it:free",
         "openrouter/free",
     ],
     AgentRole.RESEARCHER: [
-        "deepseek/deepseek-r1:free",
-        "qwen/qwq-32b:free",
-        "google/gemini-2.0-flash-001",
-        "perplexity/llama-3.1-sonar-huge-128k-online",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "google/gemma-4-31b-it:free",
         "openrouter/free",
     ],
     AgentRole.GENERALIST: [
-        "google/gemini-2.0-flash-001",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemma-4-26b-a4b-it:free",
-        "mistralai/mistral-7b-instruct:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-4-31b-it:free",
         "openrouter/free",
     ],
     AgentRole.COMMUNICATOR: [
-        "google/gemini-2.0-flash-001",
-        "anthropic/claude-3.5-haiku",
+        "meta-llama/llama-3.2-3b-instruct:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemma-4-26b-a4b-it:free",
         "openrouter/free",
     ],
 }
@@ -129,23 +122,27 @@ class MultiModelClient:
                     "temperature": temperature,
                 }
 
-                response = requests.post(
-                    OPENROUTER_API_URL,
-                    headers=self.headers,
-                    json=payload,
-                    timeout=45,
-                )
+                # Internal retry for 429/503 before moving to next model
+                for attempt in range(2):
+                    response = requests.post(
+                        OPENROUTER_API_URL,
+                        headers=self.headers,
+                        json=payload,
+                        timeout=45,
+                    )
 
-                # Rate limit or unavailable -> try next model
-                if response.status_code in (429, 503):
-                    print(f"[V2 LLM] {model_id} rate-limited/unavailable, backing off and falling back...")
-                    last_error = f"HTTP {response.status_code}"
-                    time.sleep(2.0)  # Moderate backoff before trying next model
-                    continue
+                    # Rate limit or unavailable
+                    if response.status_code in (429, 503):
+                        wait_time = 2.0 * (attempt + 1)
+                        print(f"[V2 LLM] {model_id} rate-limited (Attempt {attempt+1}), waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                        last_error = f"HTTP {response.status_code}"
+                        continue
+                    break
 
                 if response.status_code != 200:
                     error_msg = response.text[:200]
-                    print(f"[V2 LLM] {model_id} error: {response.status_code} - {error_msg}")
+                    print(f"[V2 LLM] {model_id} failed after retries: {response.status_code} - {error_msg}")
                     last_error = f"HTTP {response.status_code}: {error_msg}"
                     continue
 
@@ -212,19 +209,23 @@ class MultiModelClient:
                     "stream": True,
                 }
 
-                response = requests.post(
-                    OPENROUTER_API_URL,
-                    headers=self.headers,
-                    json=payload,
-                    timeout=60,
-                    stream=True,
-                )
+                # Internal retry for 429/503
+                for attempt in range(2):
+                    response = requests.post(
+                        OPENROUTER_API_URL,
+                        headers=self.headers,
+                        json=payload,
+                        timeout=60,
+                        stream=True,
+                    )
 
-                if response.status_code in (429, 503):
-                    print(f"[V2 STREAM] {model_id} rate-limited, backing off and falling back...")
-                    last_error = f"HTTP {response.status_code}"
-                    time.sleep(1.5)
-                    continue
+                    if response.status_code in (429, 503):
+                        wait_time = 1.5 * (attempt + 1)
+                        print(f"[V2 STREAM] {model_id} rate-limited (Attempt {attempt+1}), waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                        last_error = f"HTTP {response.status_code}"
+                        continue
+                    break
 
                 if response.status_code != 200:
                     print(f"[V2 STREAM] {model_id} error: {response.status_code}")

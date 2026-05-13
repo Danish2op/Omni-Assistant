@@ -31,34 +31,43 @@ Omni-Agent is not just another chatbot. It is a **Cognitive Operating System** d
 
 ## 🧠 The Brain: Data-Driven Model Selection
 
-We don't settle for "good enough." Omni-Agent V2 uses a **Multi-Model Expert Architecture**. Every request is handled by the model best suited for that specific task, backed by industry-standard benchmarks.
+We don't settle for "good enough." Omni-Agent V2 uses a **Hardened Multi-Model Expert Architecture**. Every request is handled by a primary expert, with an automatic fallback cascade through a verified registry of high-performance models.
 
-| Model | Role | Key Benchmark (MMLU) | Specialty |
+| Role | Primary Model | Strength | Fallback Logic |
 | :--- | :--- | :--- | :--- |
-| **Gemma 4 26B A4B** | **Orchestrator** | **82.6%** | **Mixture-of-Experts (MoE)**: Reasoning & Dispatch. |
-| **DeepSeek-R1** | **Researcher** | **90.1%** | **SOTA Reasoning**: 97.3% Math & 96.3% Coding accuracy. |
-| **Llama 3.3 70B** | **Archivist** | **86.0%** | **Logical Consistency**: 88.4% HumanEval (Coding). |
+| **Orchestrator** | **Gemma 4 26B** | **MoE Reasoning**: Fast intent classification. | Verified Free Cascade + Auto-Retry |
+| **Researcher** | **Llama 3.3 70B** | **Deep Synthesis**: Complex web research. | Hermes 3 405B |
+| **Coder** | **Qwen 3 Coder** | **SOTA Coding**: Scripting & Debugging. | Llama 3.3 70B |
+| **Communicator**| **Llama 3.2 3B** | **Speed**: Drafting emails & schedules. | Gemma 4 31B |
 
-### ⚡ Why Gemma 4 26B A4B?
-We chose this as our primary **Orchestrator** because of its innovative **Mixture-of-Experts (MoE)** architecture. It has 25.2 Billion parameters in total, but only activates 3.8 Billion per token. This gives you **GPT-4 class reasoning speed** with the efficiency of a much smaller model, ensuring your assistant responds in milliseconds.
+### ⚡ Reliability & Hardening
+- **Auto-Fallback**: If the primary model is rate-limited (429) or unavailable (503), the system instantly cycles through the fallback chain.
+- **Cognitive Rules**:
+    - **Credential Rule**: Strict separation between storing sensitive info (Archivist) and writing code (Coder).
+    - **Multi-Intent Decomp**: Automatically splits complex tasks (e.g., "Email X and save my password") into parallel execution steps.
+    - **Ambiguity Shield**: If intent confidence falls below 70%, the agent proactively asks for clarification instead of guessing.
 
 ---
 
 ## 🛠️ How it Works (The Architecture)
 
-Omni-Agent uses a "Manager-Worker" pattern. Your request hits the **Neural Router** (Gemma-4), which builds an execution plan and delegates work to specialized agents.
+Omni-Agent uses a "Manager-Worker" pattern. Your request hits the **Neural Router**, which builds a Pydantic-validated execution plan and delegates work to specialized agents.
 
 ```mermaid
 graph TD
     User((User Request)) --> Router{🧠 Neural Router<br/>Gemma-4}
     Router --> Plan[Execution Plan]
-    Plan --> Analyst[🔍 Researcher<br/>DeepSeek-R1]
+    Plan --> Analyst[🔍 Researcher<br/>Llama 3.3]
+    Plan --> Coder[💻 Coder<br/>Qwen 3]
+    Plan --> Comm[📧 Communicator<br/>Llama 3.2]
     Plan --> Archivist[📚 Archivist<br/>Llama 3.3]
-    Plan --> Organizer[✅ Organizer<br/>Llama 3.3]
+    
     Analyst --> Web((Live Web))
-    Archivist --> Mem((Long-term Memory))
-    Organizer --> Tasks((Task Database))
-    Analyst & Archivist & Organizer --> Final[✨ Unified Response]
+    Coder --> Codebase((Filesystem))
+    Comm --> Email((Gmail/Resend))
+    Archivist --> Mem((Memory/Vault))
+    
+    Analyst & Coder & Comm & Archivist --> Final[✨ Unified Response]
     Final --> User
 ```
 
