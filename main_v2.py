@@ -13,6 +13,7 @@ Runs alongside V1 main.py — same FastAPI patterns, different pipeline.
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
+from typing import List, Dict, Optional
 from pydantic import BaseModel
 import traceback
 import json as json_mod
