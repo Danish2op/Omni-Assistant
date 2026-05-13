@@ -79,16 +79,30 @@ class V2EmailerAgent:
                 yield "TEXT", "I couldn't identify who you want to email. Could you specify the name?"
                 return
 
-            yield "LOG", f"👤 Resolving contact for '{name}'..."
-            # 2. Resolve Contact
-            contact = self.get_contact(name)
-            if not contact:
-                yield "TEXT", f"I don't have an email for '{name}' in my contacts. What is their email address? I'll save it for next time."
-                return
-
-            email_addr = contact.get("email")
+            email_addr = None
             
-            yield "LOG", f"📝 Drafting professional email for {name}..."
+            # Check if extracted name is actually an email
+            if "@" in name and "." in name:
+                email_addr = name
+                yield "LOG", f"📧 Using direct email address: {email_addr}"
+            else:
+                yield "LOG", f"👤 Resolving contact for '{name}'..."
+                # 2. Resolve Contact from Database
+                contact = self.get_contact(name)
+                if contact:
+                    email_addr = contact.get("email")
+                else:
+                    # Final fallback: Look for ANY email address in the raw query
+                    import re
+                    emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', query)
+                    if emails:
+                        email_addr = emails[0]
+                        yield "LOG", f"🔍 Detected email in message: {email_addr}"
+                    else:
+                        yield "TEXT", f"I don't have an email for '{name}' in my contacts. What is their email address? I'll save it for next time."
+                        return
+
+            yield "LOG", f"📝 Drafting professional email for {email_addr}..."
             # 3. Compose Email Body via LLM
             composition_prompt = f"""Compose a professional email. 
             Recipient: {name}
