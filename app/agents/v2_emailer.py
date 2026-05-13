@@ -131,7 +131,7 @@ class V2EmailerAgent:
             if success:
                 yield "TEXT", f"✅ Email sent successfully to {name} ({email_addr})."
             else:
-                yield "TEXT", f"❌ Failed to send email via SMTP."
+                yield "TEXT", f"❌ Failed to send email via API."
 
         except Exception as e:
             yield "TEXT", f"⚠️ Error processing email request: {str(e)}"

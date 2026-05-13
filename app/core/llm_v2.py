@@ -33,30 +33,35 @@ MODEL_REGISTRY = {
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free",
+        "openrouter/free",
     ],
     AgentRole.CODER: [
         "qwen/qwen3-coder:free",
         "qwen/qwen-2.5-coder-32b-instruct:free",
         "meta-llama/llama-3.1-405b-instruct:free",
         "google/gemini-2.0-flash-001",
+        "openrouter/free",
     ],
     AgentRole.RESEARCHER: [
         "deepseek/deepseek-r1:free",
         "qwen/qwq-32b:free",
         "google/gemini-2.0-flash-001",
         "perplexity/llama-3.1-sonar-huge-128k-online",
+        "openrouter/free",
     ],
     AgentRole.GENERALIST: [
         "google/gemini-2.0-flash-001",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
         "mistralai/mistral-7b-instruct:free",
+        "openrouter/free",
     ],
     AgentRole.COMMUNICATOR: [
         "google/gemini-2.0-flash-001",
         "anthropic/claude-3.5-haiku",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
+        "openrouter/free",
     ],
 }
 
@@ -135,7 +140,7 @@ class MultiModelClient:
                 if response.status_code in (429, 503):
                     print(f"[V2 LLM] {model_id} rate-limited/unavailable, backing off and falling back...")
                     last_error = f"HTTP {response.status_code}"
-                    time.sleep(1.5)  # Small backoff before trying next model
+                    time.sleep(2.0)  # Moderate backoff before trying next model
                     continue
 
                 if response.status_code != 200:
