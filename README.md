@@ -38,7 +38,24 @@ We don't settle for "good enough." Omni-Agent V2 uses a **Hardened Multi-Model E
 | **Orchestrator** | **Gemma 4 26B** | **MoE Reasoning**: Fast intent classification. | Verified Free Cascade + Auto-Retry |
 | **Researcher** | **Llama 3.3 70B** | **Deep Synthesis**: Complex web research. | Hermes 3 405B |
 | **Coder** | **Qwen 3 Coder** | **SOTA Coding**: Scripting & Debugging. | Llama 3.3 70B |
-| **Communicator**| **Llama 3.2 3B** | **Speed**: Drafting emails & schedules. | Gemma 4 31B |
+| **Communicator**| **Llama 3.2 3B** | **Action**: Emails, Reminders, & Routines. | Gemma 4 31B |
+
+---
+
+## ✨ New in V2: Actionable Agents
+
+### 📧 The Communicator (Email & Scheduling)
+V2 introduces a dedicated **Communicator Agent** that moves beyond chat to take real-world actions.
+- **Professional Emailing**: Integrated with `Resend` and `Gmail`. You can say *"Send an email to John about the project update"* and the agent will draft, format, and send it.
+- **Persistent Routines**: Built-in `APScheduler` support allows for recurring automation. 
+    - *"Remind me every Monday at 9 AM to check my portfolio."*
+    - *"Check the latest AI news daily at 8 PM and summarize it for me."*
+- **Smart Scheduling**: Handles complex time logic. It knows what "next Tuesday" or "in 2 hours" means relative to IST.
+
+### 📚 The Archivist (Secure Memory)
+- **Vaulted Credentials**: Safely stores API keys and sensitive notes using encryption-ready pathways.
+- **Semantic Retrieval**: Long-term memory that understands context, not just keywords.
+
 
 ### ⚡ Reliability & Hardening
 - **Auto-Fallback**: If the primary model is rate-limited (429) or unavailable (503), the system instantly cycles through the fallback chain.
