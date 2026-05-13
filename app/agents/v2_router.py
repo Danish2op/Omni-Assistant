@@ -12,6 +12,25 @@ from pydantic import BaseModel, Field
 from app.core.llm_v2 import MultiModelClient, AgentRole
 
 
+# ---- Heuristic Routing Rules (Bypass LLM for high-confidence triggers) ----
+
+HEURISTIC_TRIGGERS = {
+    "COMMUNICATOR": {
+        "actions": {
+            "SCHEDULE": ["every day", "daily", "weekly", "monthly", "routine", "recurring", "everyday"],
+            "REMIND": ["remind me", "set a reminder", "reminder for"],
+            "EMAIL": ["email to", "send email", "mail it to"],
+        }
+    },
+    "ORGANIZER": {
+        "actions": {
+            "CREATE": ["create task", "add task", "new task"],
+            "LIST": ["list tasks", "show tasks", "my tasks"],
+        }
+    }
+}
+
+
 # ---- Pydantic Models for Deterministic Output ----
 
 class TaskPlan(BaseModel):
@@ -130,10 +149,17 @@ class V2RouterAgent:
     def route_request(self, user_input: str, history: List[dict] = None) -> dict:
         """
         Classify user intent and produce a validated execution plan.
-
-        Returns dict with 'tasks' array, each task having:
-        intent, action, keywords, refined_query.
+        Uses a two-layer approach:
+        1. Heuristic Pre-routing (Static keywords for reliability)
+        2. LLM classification (Dynamic reasoning)
         """
+        # --- Layer 1: Heuristic Pre-routing ---
+        heuristics = self._heuristic_route(user_input)
+        if heuristics:
+            print(f"[V2 Router] Heuristic match found: {heuristics['tasks'][0]['intent']}")
+            return heuristics
+
+        # --- Layer 2: LLM Classification ---
         try:
             from app.core.time_utils import format_ist_time
             current_time = format_ist_time()
@@ -174,6 +200,25 @@ class V2RouterAgent:
         except Exception as e:
             print(f"[V2 Router] Error: {e}")
             return self._fallback_plan(user_input, str(e))
+
+    def _heuristic_route(self, user_input: str) -> Optional[dict]:
+        """Check for static keywords to bypass LLM and increase reliability."""
+        text = user_input.lower()
+        
+        for intent, config in HEURISTIC_TRIGGERS.items():
+            for action, keywords in config["actions"].items():
+                if any(kw in text for kw in keywords):
+                    return {
+                        "tasks": [{
+                            "intent": intent,
+                            "action": action,
+                            "keywords": [],
+                            "refined_query": user_input,
+                            "confidence": 1.0
+                        }],
+                        "reasoning": f"Static keyword match for {intent}/{action}"
+                    }
+        return None
 
     def _extract_json(self, raw: str) -> str:
         """Extract JSON object from potentially messy LLM output."""
