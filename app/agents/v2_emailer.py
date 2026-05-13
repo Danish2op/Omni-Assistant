@@ -304,15 +304,18 @@ class V2EmailerAgent:
     # ---- Routine Management ----
 
     def create_routine(self, contact_email: str, routine_type: str, frequency: str, schedule_time: str, content_params: dict = None) -> bool:
-        """Save a recurring routine to Supabase."""
+        """Save a recurring routine to Supabase.
+        
+        Table schema: id, type, parameters (jsonb), frequency, recipient_email,
+                       start_date, end_date, next_run_at, status, created_at (auto).
+        """
         data = {
-            "contact_email": contact_email,
+            "recipient_email": contact_email,
             "type": routine_type,
             "frequency": frequency,
-            "time": schedule_time,
-            "content_params": content_params or {},
+            "parameters": {**(content_params or {}), "schedule_time": schedule_time},
             "status": "active",
-            "created_at": datetime.utcnow().isoformat()
         }
         result = self.db.save_data("routines", data)
         return result is not None
+

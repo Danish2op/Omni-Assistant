@@ -43,9 +43,10 @@ class SupabaseV2Client:
         ]
         if any(indicator in error_str for indicator in connection_indicators):
             self._is_paused = True
-            print(f"[V2 DB] Supabase appears PAUSED. Operation: {operation}")
+            print(f"[V2 DB] Supabase appears PAUSED. Operation: {operation}. Error: {error}")
         else:
             print(f"[V2 DB] Error in {operation}: {error}")
+            print(f"[V2 DB] Full Exception Details: {repr(error)}")
 
     @property
     def is_paused(self) -> bool:
