@@ -8,6 +8,7 @@ Each role has its own fallback cascade of free OpenRouter models.
 import os
 import json
 import requests
+import time
 from enum import Enum
 from typing import Optional, Generator
 
@@ -28,28 +29,34 @@ class AgentRole(Enum):
 MODEL_REGISTRY = {
     AgentRole.ORCHESTRATOR: [
         "google/gemma-4-26b-a4b-it:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemini-2.0-flash-001",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free",
     ],
     AgentRole.CODER: [
         "qwen/qwen3-coder:free",
         "qwen/qwen-2.5-coder-32b-instruct:free",
+        "meta-llama/llama-3.1-405b-instruct:free",
         "google/gemini-2.0-flash-001",
     ],
     AgentRole.RESEARCHER: [
         "deepseek/deepseek-r1:free",
         "qwen/qwq-32b:free",
         "google/gemini-2.0-flash-001",
+        "perplexity/llama-3.1-sonar-huge-128k-online",
     ],
     AgentRole.GENERALIST: [
+        "google/gemini-2.0-flash-001",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
-        "google/gemini-2.0-flash-001",
+        "mistralai/mistral-7b-instruct:free",
     ],
     AgentRole.COMMUNICATOR: [
+        "google/gemini-2.0-flash-001",
+        "anthropic/claude-3.5-haiku",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
-        "google/gemini-2.0-flash-001",
     ],
 }
 
@@ -126,8 +133,9 @@ class MultiModelClient:
 
                 # Rate limit or unavailable -> try next model
                 if response.status_code in (429, 503):
-                    print(f"[V2 LLM] {model_id} rate-limited/unavailable, falling back...")
+                    print(f"[V2 LLM] {model_id} rate-limited/unavailable, backing off and falling back...")
                     last_error = f"HTTP {response.status_code}"
+                    time.sleep(1.5)  # Small backoff before trying next model
                     continue
 
                 if response.status_code != 200:
@@ -208,8 +216,9 @@ class MultiModelClient:
                 )
 
                 if response.status_code in (429, 503):
-                    print(f"[V2 STREAM] {model_id} rate-limited, falling back...")
+                    print(f"[V2 STREAM] {model_id} rate-limited, backing off and falling back...")
                     last_error = f"HTTP {response.status_code}"
+                    time.sleep(1.5)
                     continue
 
                 if response.status_code != 200:
