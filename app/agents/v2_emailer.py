@@ -27,22 +27,41 @@ class V2EmailerAgent:
         processed_query: str = None,
     ) -> str:
         """
-        Main entry point for communicator tasks.
-        Expected actions: EMAIL, REMIND, SCHEDULE
+        Main entry point for communicator tasks (Sync version).
+        Returns the final string result.
+        """
+        result = []
+        for chunk_type, content in self.handle_query_stream(user_input, action, keywords, processed_query):
+            if chunk_type == "TEXT":
+                result.append(content)
+        return "".join(result)
+
+    def handle_query_stream(
+        self,
+        user_input: str,
+        action: str = None,
+        keywords: list = None,
+        processed_query: str = None,
+    ):
+        """
+        Generator version of handle_query.
+        Yields (type, content) pairs. types: 'LOG', 'TEXT'
         """
         effective_query = processed_query if processed_query else user_input
         
         if action == "EMAIL":
-            return self._handle_email(effective_query)
+            yield from self._handle_email(effective_query)
         elif action == "REMIND":
-            return self._handle_reminder(effective_query)
+            yield "TEXT", self._handle_reminder(effective_query)
         elif action == "SCHEDULE":
-            return self._handle_schedule(effective_query)
+            yield "TEXT", self._handle_schedule(effective_query)
         else:
-            return self._chat(effective_query)
+            yield "TEXT", self._chat(effective_query)
 
-    def _handle_email(self, query: str) -> str:
-        """Resolve contact, compose email via LLM, and send."""
+    def _handle_email(self, query: str):
+        """Resolve contact, compose email via LLM, and send with progress logs."""
+        yield "LOG", "🔍 Analyzing email request..."
+        
         # 1. Extract recipient and intent from query
         extraction_prompt = f"""Extract email details from this query: "{query}"
         Output ONLY valid JSON: {{"recipient_name": "string", "subject": "string", "body_intent": "string"}}
@@ -57,15 +76,19 @@ class V2EmailerAgent:
             
             name = details.get("recipient_name")
             if not name:
-                return "I couldn't identify who you want to email. Could you specify the name?"
+                yield "TEXT", "I couldn't identify who you want to email. Could you specify the name?"
+                return
 
+            yield "LOG", f"👤 Resolving contact for '{name}'..."
             # 2. Resolve Contact
             contact = self.get_contact(name)
             if not contact:
-                return f"I don't have an email for '{name}' in my contacts. What is their email address? I'll save it for next time."
+                yield "TEXT", f"I don't have an email for '{name}' in my contacts. What is their email address? I'll save it for next time."
+                return
 
             email_addr = contact.get("email")
             
+            yield "LOG", f"📝 Drafting professional email for {name}..."
             # 3. Compose Email Body via LLM
             composition_prompt = f"""Compose a professional email. 
             Recipient: {name}
@@ -77,6 +100,7 @@ class V2EmailerAgent:
             
             html_body = self.llm.generate(prompt=composition_prompt, role=self.role)
             
+            yield "LOG", f"📧 Sending via Gmail SMTP to {email_addr}..."
             # 4. Send
             success = self.gmail.send_email(
                 to=email_addr,
@@ -85,12 +109,12 @@ class V2EmailerAgent:
             )
             
             if success:
-                return f"✅ Email sent to {name} ({email_addr})."
+                yield "TEXT", f"✅ Email sent successfully to {name} ({email_addr})."
             else:
-                return f"❌ Failed to send email."
+                yield "TEXT", f"❌ Failed to send email via SMTP."
 
         except Exception as e:
-            return f"⚠️ Error processing email request: {str(e)}"
+            yield "TEXT", f"⚠️ Error processing email request: {str(e)}"
 
     def _handle_reminder(self, query: str) -> str:
         """Schedule a one-off reminder email."""

@@ -368,6 +368,23 @@ def chat_stream(request: ChatRequest):
                         shared_context = full_streamed_response[:2000]
                         yield _sse_event("TEXT", content="\n\n---\n\n")
 
+                elif intent == "COMMUNICATOR":
+                    full_response = ""
+                    for chunk_type, content in emailer_agent.handle_query_stream(
+                        request.message, action, keywords, agent_query
+                    ):
+                        if chunk_type == "LOG":
+                            # Stream logs as italics for a "working" feel
+                            yield _sse_event("TEXT", content=f"*{content}*\n")
+                        else:
+                            full_response += content
+                            yield _sse_event("TEXT", content=content)
+                    
+                    execution_log.append({"intent": intent, "response": full_response})
+                    if i < len(tasks) - 1:
+                        shared_context = full_response[:2000]
+                        yield _sse_event("TEXT", content="\n\n---\n\n")
+
                 else:
                     # Non-streamable agents — get full response, emit as one TEXT
                     response = _dispatch_agent(intent, action, keywords, request.message, agent_query)
