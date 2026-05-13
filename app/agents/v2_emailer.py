@@ -158,6 +158,9 @@ class V2EmailerAgent:
             # Resolve user email
             user_email = os.environ.get("USER_EMAIL")
             if not user_email:
+                user_email = os.environ.get("GMAIL_ADDRESS")
+                
+            if not user_email:
                 self_contact = self.get_contact("self")
                 if self_contact:
                     user_email = self_contact.get("email")
@@ -191,24 +194,37 @@ class V2EmailerAgent:
 
     def _handle_schedule(self, query: str) -> str:
         """Schedule a recurring routine (e.g., daily news, weekly check-in)."""
-        extraction_prompt = f"""Extract recurring routine details from: "{query}"
-        Output ONLY valid JSON: {{
-            "routine_type": "string", 
-            "frequency": "daily|weekly|monthly", 
-            "time": "HH:MM", 
-            "day_of_week": "mon|tue|wed|thu|fri|sat|sun|null",
-            "recipient_name": "string or null"
-        }}
-        Current time (IST): {datetime.now().isoformat()}"""
+        # --- Layer 1: Heuristic Extraction (Bypass LLM for common patterns) ---
+        heuristics = self._heuristic_extract_schedule(query)
+        
+        details = None
+        if heuristics:
+            print(f"[Communicator] Heuristic extraction success for routine: {heuristics['routine_type']}")
+            details = heuristics
+        else:
+            # --- Layer 2: LLM Extraction (Dynamic reasoning) ---
+            extraction_prompt = f"""Extract recurring routine details from: "{query}"
+            Output ONLY valid JSON: {{
+                "routine_type": "string", 
+                "frequency": "daily|weekly|monthly", 
+                "time": "HH:MM", 
+                "day_of_week": "mon|tue|wed|thu|fri|sat|sun|null",
+                "recipient_name": "string or null"
+            }}
+            Current time (IST): {datetime.now().isoformat()}"""
+            
+            try:
+                raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
+                details_str = self._extract_json(raw_extract)
+                if details_str:
+                    details = json.loads(details_str)
+            except Exception as e:
+                print(f"[Communicator] LLM Extraction failed: {e}")
+
+        if not details:
+            return "I couldn't structure your routine correctly. Please specify the time and frequency (e.g., 'every day at 9 AM')."
         
         try:
-            raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
-            details_str = self._extract_json(raw_extract)
-            if not details_str:
-                return "I couldn't structure your routine correctly. Please specify the time and frequency (e.g., 'every day at 9 AM')."
-            
-            details = json.loads(details_str)
-            
             routine_type = details.get("routine_type")
             frequency = details.get("frequency")
             time_str = details.get("time")
@@ -220,6 +236,9 @@ class V2EmailerAgent:
 
             # Resolve contact
             recipient_email = os.environ.get("USER_EMAIL")
+            if not recipient_email:
+                recipient_email = os.environ.get("GMAIL_ADDRESS")
+
             if not recipient_email:
                 # Check for "self" contact
                 self_contact = self.get_contact("self")
@@ -238,10 +257,21 @@ class V2EmailerAgent:
 
             # Parse time
             try:
-                hour, minute = map(int, time_str.replace("AM", "").replace("PM", "").strip().split(":"))
-                if "PM" in time_str.upper() and hour < 12:
+                # Handle HH:MM AM/PM or just HH:MM
+                clean_time = time_str.upper().strip()
+                is_pm = "PM" in clean_time
+                is_am = "AM" in clean_time
+                time_nums = clean_time.replace("AM", "").replace("PM", "").strip()
+                
+                if ":" in time_nums:
+                    hour, minute = map(int, time_nums.split(":"))
+                else:
+                    hour = int(time_nums)
+                    minute = 0
+                
+                if is_pm and hour < 12:
                     hour += 12
-                elif "AM" in time_str.upper() and hour == 12:
+                elif is_am and hour == 12:
                     hour = 0
             except:
                 return f"I couldn't understand the time '{time_str}'. Please use HH:MM format."
@@ -279,6 +309,79 @@ class V2EmailerAgent:
 
         except Exception as e:
             return f"⚠️ Error setting up routine: {str(e)}"
+
+    def _heuristic_extract_schedule(self, query: str) -> Optional[dict]:
+        """Regex-based extraction for common routine patterns."""
+        import re
+        text = query.lower()
+        
+        # 1. Frequency and Day of Week
+        frequency = "daily"
+        day_of_week = None
+        days_map = {
+            "monday": "mon", "tuesday": "tue", "wednesday": "wed", 
+            "thursday": "thu", "friday": "fri", "saturday": "sat", "sunday": "sun",
+            "mon": "mon", "tue": "tue", "wed": "wed", "thu": "thu", "fri": "fri", "sat": "sat", "sun": "sun"
+        }
+        
+        for day, code in days_map.items():
+            if f"every {day}" in text or f"on {day}" in text:
+                frequency = "weekly"
+                day_of_week = code
+                break
+        
+        if frequency == "daily":
+            if "weekly" in text or "every week" in text:
+                frequency = "weekly"
+                day_of_week = "mon" # Default
+            elif "monthly" in text or "every month" in text:
+                frequency = "monthly"
+            elif "every day" in text or "everyday" in text or "daily" in text:
+                frequency = "daily"
+            
+        # 2. Time (e.g., 9 am, 9:30 PM, at 10:00)
+        time_match = re.search(r'(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)', text, re.IGNORECASE)
+        if not time_match:
+            # Fallback for "morning", "night", etc.
+            if "morning" in text:
+                time_str = "9:00 AM"
+            elif "night" in text:
+                time_str = "10:00 PM"
+            elif "evening" in text:
+                time_str = "6:00 PM"
+            elif "afternoon" in text:
+                time_str = "2:00 PM"
+            else:
+                return None
+        else:
+            time_str = time_match.group(1).upper()
+        
+        # 3. Routine Type
+        routine_type = query
+        words_to_strip = [
+            "every day", "everyday", "daily", "weekly", "monthly", "schedule", 
+            "routine", "at", "set a", "on", "every"
+        ]
+        words_to_strip.extend(days_map.keys())
+        
+        for w in words_to_strip:
+            routine_type = re.sub(rf'\b{w}\b', '', routine_type, flags=re.IGNORECASE)
+        
+        if time_match:
+            routine_type = routine_type.replace(time_match.group(1), "")
+            
+        routine_type = " ".join(routine_type.split()).strip()
+        
+        if not routine_type:
+            routine_type = "Generic Routine"
+            
+        return {
+            "routine_type": routine_type,
+            "frequency": frequency,
+            "time": time_str,
+            "day_of_week": day_of_week,
+            "recipient_name": "me" if "me" in text or "my" in text else None
+        }
 
     def _chat(self, query: str) -> str:
         """General communication response."""

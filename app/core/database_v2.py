@@ -39,7 +39,7 @@ class SupabaseV2Client:
         connection_indicators = [
             "timeout", "connection refused", "name resolution",
             "connect call failed", "gaierror", "connectionerror",
-            "project is paused"
+            "project is paused", "502", "503", "504"
         ]
         if any(indicator in error_str for indicator in connection_indicators):
             self._is_paused = True
@@ -99,7 +99,7 @@ class SupabaseV2Client:
                 return self.get_data(table_name, {"limit": limit})
             
             # tables that support metadata searching
-            supports_metadata = table_name.lower() in ["memories", "tasks"]
+            supports_metadata = table_name.lower() in ["memories", "tasks", "knowledge_base", "v2_memories"]
             
             if supports_metadata:
                 or_clauses = ",".join([

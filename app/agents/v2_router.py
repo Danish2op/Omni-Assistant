@@ -17,15 +17,49 @@ from app.core.llm_v2 import MultiModelClient, AgentRole
 HEURISTIC_TRIGGERS = {
     "COMMUNICATOR": {
         "actions": {
-            "SCHEDULE": ["every day", "daily", "weekly", "monthly", "routine", "recurring", "everyday"],
-            "REMIND": ["remind me", "set a reminder", "reminder for"],
-            "EMAIL": ["email to", "send email", "mail it to"],
+            "SCHEDULE": [
+                "every day", "daily", "weekly", "monthly", "routine", "recurring", 
+                "everyday", "every morning", "every night", "every evening",
+                "every monday", "every tuesday", "every wednesday", "every thursday", 
+                "every friday", "every saturday", "every sunday",
+                "on monday", "on tuesday", "on wednesday", "on thursday", 
+                "on friday", "on saturday", "on sunday",
+                "at 9 am", "at 10 am", "at 8 am", "at 7 am", "at 11 am", "at 12 pm",
+                "at 1 pm", "at 2 pm", "at 3 pm", "at 4 pm", "at 5 pm", "at 6 pm",
+                "at 7 pm", "at 8 pm", "at 9 pm", "at 10 pm",
+                "set a routine", "schedule a", "recurring task"
+            ],
+            "REMIND": [
+                "remind me", "set a reminder", "reminder for", "remind",
+                "in 5 minutes", "in 10 minutes", "in 30 minutes", "in 1 hour",
+                "timer for", "alarm for"
+            ],
+            "EMAIL": [
+                "email to", "send email", "mail it to", "email me", "send a mail",
+                "cc me on", "bcc me on", "forward to"
+            ],
         }
     },
     "ORGANIZER": {
         "actions": {
-            "CREATE": ["create task", "add task", "new task"],
-            "LIST": ["list tasks", "show tasks", "my tasks"],
+            "CREATE": ["create task", "add task", "new task", "todo", "to-do"],
+            "LIST": ["list tasks", "show tasks", "my tasks", "what are my tasks", "task list"],
+            "UPDATE": [
+                "mark as done", "task completed", "finish task", "delete task",
+                "completed", "done", "finished", "remove task"
+            ]
+        }
+    },
+    "ARCHIVIST": {
+        "actions": {
+            "STORE": [
+                "save this", "store my", "remember my", "password for", "ssh for",
+                "credentials for", "keep note of", "save note"
+            ],
+            "RETRIEVE": [
+                "what is my", "get my", "lookup my", "search my notes", "find my",
+                "where did i", "what was the"
+            ]
         }
     }
 }
