@@ -25,26 +25,29 @@ def execute_intelligent_routine(to: str, routine_type: str, params: dict):
     
     subject = f"Omni Routine: {routine_type.title()}"
     content = ""
-    
     try:
-        if "news" in routine_type.lower() or "market" in routine_type.lower():
-            analyst = V2AnalystAgent()
-            query = params.get("query", f"Latest news on {routine_type}")
-            research = analyst.handle_query(query)
+        # For intelligent routines, we usually want to research the topic first
+        # unless specifically instructed otherwise.
+        analyst = V2AnalystAgent()
+        
+        # Determine the best query: explicit query param > routine_type context
+        query = params.get("query")
+        if not query:
+            query = f"Latest updates and information about {routine_type}"
             
-            # Format research into a nice HTML email
-            llm = MultiModelClient()
-            format_prompt = f"""Format the following research data into a beautiful, mobile-friendly HTML email body.
-            Routine Type: {routine_type}
-            Research Data: {research}
-            
-            Use professional typography, clear sections, and include source links.
-            Do not include <html> or <body> tags, just the inner content."""
-            
-            content = llm.generate(prompt=format_prompt, role=AgentRole.COMMUNICATOR)
-        else:
-            content = f"<p>This is your scheduled {routine_type} update.</p><p>Summary: {params.get('query', 'No details provided.')}</p>"
-            
+        print(f"[Jobs V2] Fetching research for: {query}")
+        research = analyst.handle_query(query)
+        
+        # Format research into a nice HTML email
+        llm = MultiModelClient()
+        format_prompt = f"""Format the following research data into a beautiful, mobile-friendly HTML email body.
+        Routine Type: {routine_type}
+        Research Data: {research}
+        
+        Use professional typography, clear sections, vibrant modern design, and include source links.
+        Do not include <html> or <body> tags, just the inner content."""
+        
+        content = llm.generate(prompt=format_prompt, role=AgentRole.COMMUNICATOR)
     except Exception as e:
         print(f"[Jobs V2] Content generation error: {e}")
         content = f"<p>Sorry, I had trouble generating your {routine_type} update today.</p><p>Error: {str(e)}</p>"

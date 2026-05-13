@@ -36,11 +36,16 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     """Startup and Shutdown logic for V2 Neural Hub."""
     print("🧠 Omni-Agent V2: Starting...")
+    # News cache scheduler
     scheduler.add_job(update_news_cache, "interval", seconds=60)
     scheduler.start()
     await update_news_cache()
+    # Routine/Reminder scheduler (APScheduler for one-off and recurring jobs)
+    from app.core.scheduler_v2 import scheduler_instance
+    scheduler_instance.start()
     yield
     print("🧠 Omni-Agent V2: Shutting down...")
+    scheduler_instance.shutdown()
     scheduler.shutdown()
 
 

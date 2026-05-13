@@ -152,31 +152,42 @@ class V2EmailerAgent:
                 return "I'm having trouble understanding the time and message for the reminder. Could you try saying it differently (e.g., 'remind me in 5 minutes')?"
             
             details = json.loads(details_str)
-            
             message = details.get("message") or query
             wait_min = details.get("wait_minutes")
             
-            from app.core.jobs_v2 import async_send_routine_email
+            # Resolve user email
+            user_email = os.environ.get("USER_EMAIL")
+            if not user_email:
+                self_contact = self.get_contact("self")
+                if self_contact:
+                    user_email = self_contact.get("email")
             
-            # Default to user's email if no recipient specified for reminder
-            user_email = os.environ.get("USER_EMAIL", "danishsharma@example.com")
-            self_contact = self.get_contact("self")
-            if self_contact:
-                user_email = self_contact.get("email")
+            if not user_email:
+                return "⚠️ I don't know your email address! Please set USER_EMAIL in your .env or add a 'self' contact with your email."
             
             if wait_min:
-                scheduler_instance.scheduler.add_job(
-                    async_send_routine_email,
-                    'date',
-                    run_date=datetime.now() + timedelta(minutes=wait_min),
-                    args=[user_email, "Omni Reminder", f"<p>Reminder: {message}</p>"]
-                )
+                self._schedule_reminder_job(user_email, "Omni Reminder", f"<p>Reminder: {message}</p>", wait_min)
                 return f"✅ Set a reminder for {wait_min} minutes from now."
             
             return "I couldn't quite figure out when to remind you. Could you be more specific (e.g. 'in 10 minutes')?"
 
         except Exception as e:
             return f"⚠️ Error scheduling reminder: {str(e)}"
+
+    def _schedule_reminder_job(self, to: str, subject: str, html_content: str, wait_minutes: int):
+        """Helper to schedule the reminder job via APScheduler."""
+        from app.core.jobs_v2 import async_send_routine_email
+        from app.core.scheduler_v2 import scheduler_instance
+        
+        run_at = datetime.now() + timedelta(minutes=wait_minutes)
+        scheduler_instance.scheduler.add_job(
+            async_send_routine_email,
+            'date',
+            run_date=run_at,
+            args=[to, subject, html_content]
+        )
+        print(f"[Communicator] Scheduled reminder for {to} at {run_at}")
+
 
     def _handle_schedule(self, query: str) -> str:
         """Schedule a recurring routine (e.g., daily news, weekly check-in)."""
