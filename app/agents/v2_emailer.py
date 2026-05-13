@@ -100,7 +100,7 @@ class V2EmailerAgent:
             
             html_body = self.llm.generate(prompt=composition_prompt, role=self.role)
             
-            yield "LOG", f"📧 Sending via Gmail SMTP to {email_addr}..."
+            yield "LOG", f"📧 Sending email to {email_addr}..."
             # 4. Send
             success = self.gmail.send_email(
                 to=email_addr,
