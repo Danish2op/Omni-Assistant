@@ -8,10 +8,10 @@ class GmailTool:
     Tool for sending emails via Gmail SMTP using an App Password.
     """
     def __init__(self):
-        self.email_address = os.environ.get("GMAIL_ADDRESS", "omniagentbydanishsharma@gmail.com")
-        self.app_password = os.environ.get("GMAIL_APP_PASSWORD", "yplo xytp svgc wdvt")
+        self.email_address = os.environ.get("GMAIL_ADDRESS")
+        self.app_password = os.environ.get("GMAIL_APP_PASSWORD")
         self.smtp_server = "smtp.gmail.com"
-        self.smtp_port = 587
+        self.smtp_port = 465  # Switched to SSL port for better cloud compatibility
 
     def send_email(self, to: str, subject: str, html_content: str, from_name: str = "Omni") -> bool:
         """
@@ -36,9 +36,8 @@ class GmailTool:
         msg.attach(part)
 
         try:
-            # Connect to SMTP server
-            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
-            server.starttls()  # Secure the connection
+            # Connect to SMTP server using SSL
+            server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
             server.login(self.email_address, self.app_password)
             
             # Send email
