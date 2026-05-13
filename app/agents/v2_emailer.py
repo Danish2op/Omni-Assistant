@@ -74,10 +74,12 @@ class V2EmailerAgent:
         
         try:
             raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
-            # Find JSON in potentially messy output
-            start = raw_extract.find('{')
-            end = raw_extract.rfind('}')
-            details = json.loads(raw_extract[start:end+1])
+            details_str = self._extract_json(raw_extract)
+            if not details_str:
+                yield "TEXT", f"⚠️ The brain is a bit foggy right now (LLM failed to produce structured data). Please try again in a moment.\n\nRaw response: {raw_extract[:100]}..."
+                return
+            
+            details = json.loads(details_str)
             
             name = details.get("recipient_name")
             if not name:
@@ -145,9 +147,11 @@ class V2EmailerAgent:
         
         try:
             raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
-            start = raw_extract.find('{')
-            end = raw_extract.rfind('}')
-            details = json.loads(raw_extract[start:end+1])
+            details_str = self._extract_json(raw_extract)
+            if not details_str:
+                return "I'm having trouble understanding the time and message for the reminder. Could you try saying it differently (e.g., 'remind me in 5 minutes')?"
+            
+            details = json.loads(details_str)
             
             message = details.get("message") or query
             wait_min = details.get("wait_minutes")
@@ -188,9 +192,11 @@ class V2EmailerAgent:
         
         try:
             raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
-            start = raw_extract.find('{')
-            end = raw_extract.rfind('}')
-            details = json.loads(raw_extract[start:end+1])
+            details_str = self._extract_json(raw_extract)
+            if not details_str:
+                return "I couldn't structure your routine correctly. Please specify the time and frequency (e.g., 'every day at 9 AM')."
+            
+            details = json.loads(details_str)
             
             routine_type = details.get("routine_type")
             frequency = details.get("frequency")
@@ -263,6 +269,16 @@ class V2EmailerAgent:
         """General communication response."""
         system_msg = "You are Omni's Communicator. You help the user with emails, reminders, and scheduling. Be professional and helpful."
         return self.llm.generate(prompt=query, system_instruction=system_msg, role=self.role)
+
+    def _extract_json(self, raw: str) -> Optional[str]:
+        """Robust JSON extraction from LLM output."""
+        cleaned = raw.strip()
+        # Find outermost JSON braces
+        start = cleaned.find('{')
+        end = cleaned.rfind('}')
+        if start != -1 and end != -1:
+            return cleaned[start:end + 1]
+        return None
 
     # ---- Contact Management ----
 

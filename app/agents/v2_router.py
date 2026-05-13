@@ -73,6 +73,11 @@ INTENT + ACTION VOCABULARY:
    - If you are less than 70% sure of the intent, set action="CLARIFY" and intent="GENERAL".
    - Reasoning must include a brief chain-of-thought.
 
+6. COMMUNICATOR ACTION RULE:
+   - EMAIL: One-off request to send an email immediately.
+   - REMIND: One-off request to be reminded at a specific time/delay.
+   - SCHEDULE: Any request containing "every day", "weekly", "routine", "recurring", "daily", or specifying a recurring timeframe.
+
 --- ROUTING LOGIC EXAMPLES ---
 
 User: "ssh root@65.109.150.223 pw: 1234. mail it to me"
@@ -103,6 +108,12 @@ User: "Remember where I kept my car keys"
 {
   "tasks": [{"intent": "ARCHIVIST", "action": "STORE", "keywords": ["car keys"], "refined_query": "Store memory: Car keys location"}],
   "reasoning": "Memory storage."
+}
+
+User: "set a routine every day to email me motivational quotes at 8 AM"
+{
+  "tasks": [{"intent": "COMMUNICATOR", "action": "SCHEDULE", "keywords": ["routine", "quotes"], "refined_query": "Set a daily routine to email motivational quotes at 8 AM"}],
+  "reasoning": "User specified 'routine' and 'every day', triggering a recurring schedule."
 }
 """
 
