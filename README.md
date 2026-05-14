@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://omni-v2-nu.vercel.app">
+  <a href="https://omniagent.danis.live">
     <img src="https://img.shields.io/badge/Live%20Demo-Visit%20App-00d4ff?style=for-the-badge&logo=vercel" alt="Live Demo" />
   </a>
   <img src="https://img.shields.io/badge/Models-MoE%20%7C%20DeepSeek--R1%20%7C%20Llama%203.3-orange?style=for-the-badge" alt="Models" />
