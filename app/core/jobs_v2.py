@@ -70,3 +70,65 @@ async def async_send_routine_email(to: str, subject: str, html_content: str):
             print(f"[Jobs V2] Success: Routine email sent to {to}")
     except Exception as e:
         print(f"[Jobs V2] Failed: {e}")
+
+def sync_routines_on_startup():
+    """Sync routines from Supabase to the APScheduler."""
+    try:
+        from app.core.database_v2 import SupabaseV2Client
+        from app.core.scheduler_v2 import scheduler_instance
+        import re
+        
+        print("[Jobs V2] Starting routine reconciliation...")
+        db = SupabaseV2Client()
+        routines = db.get_data("routines", {})
+        count = 0
+        
+        for routine in (routines or []):
+            try:
+                if routine.get("status") == "active":
+                    recipient_email = routine.get("recipient_email")
+                    if not recipient_email: continue
+                    
+                    time_str = routine.get("parameters", {}).get("schedule_time", "9 AM")
+                    time_match = re.search(r'(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)', time_str, re.IGNORECASE)
+                    
+                    if time_match:
+                        clean_time = time_match.group(1).upper()
+                        is_pm = "PM" in clean_time
+                        is_am = "AM" in clean_time
+                        time_nums = clean_time.replace("AM", "").replace("PM", "").strip()
+                        
+                        if ":" in time_nums:
+                            hour, minute = map(int, time_nums.split(":"))
+                        else:
+                            hour = int(time_nums)
+                            minute = 0
+                            
+                        if is_pm and hour < 12: hour += 12
+                        elif is_am and hour == 12: hour = 0
+                        
+                        trigger_args = {'hour': hour, 'minute': minute}
+                        if routine.get("frequency") == 'weekly':
+                            trigger_args['day_of_week'] = routine.get("parameters", {}).get("day_of_week", "mon")
+                        
+                        routine_type = routine.get("type", "Generic Routine")
+                        query = routine.get("parameters", {}).get("query", routine_type)
+                        
+                        job_id = f"routine_{routine_type}_{recipient_email}".replace(" ", "_")
+                        
+                        scheduler_instance.scheduler.add_job(
+                            execute_intelligent_routine,
+                            'cron',
+                            **trigger_args,
+                            args=[recipient_email, routine_type, {"query": query}],
+                            id=job_id,
+                            replace_existing=True
+                        )
+                        count += 1
+                        print(f"[Jobs V2] Rescheduled routine: {job_id} at {hour:02d}:{minute:02d}")
+            except Exception as item_err:
+                print(f"[Jobs V2] Skipping routine ID {routine.get('id')}: {item_err}")
+                    
+        print(f"[Jobs V2] Synced {count} active routines from database.")
+    except Exception as e:
+        print(f"[Jobs V2] ⚠️ Failed to sync routines: {e}")

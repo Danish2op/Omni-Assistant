@@ -10,9 +10,11 @@ Entry point for the V2 architecture. Uses:
 Runs alongside V1 main.py — same FastAPI patterns, different pipeline.
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-from dotenv import load_dotenv
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 import traceback
@@ -29,8 +31,6 @@ from app.core.llm_v2 import MultiModelClient, AgentRole
 from app.core.scheduler_v2 import scheduler_instance
 from app.tools.news_api import update_news_cache
 from fastapi.middleware.cors import CORSMiddleware
-
-load_dotenv()
 
 
 @asynccontextmanager
@@ -53,6 +53,10 @@ async def lifespan(app: FastAPI):
     
     # Initial news fetch
     await update_news_cache()
+    
+    # 3. Reconcile routines from DB into the persistent job store
+    from app.core.jobs_v2 import sync_routines_on_startup
+    sync_routines_on_startup()
     
     yield
     print("🧠 Omni-Agent V2: Shutting down...")

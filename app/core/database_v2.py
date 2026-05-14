@@ -79,12 +79,18 @@ class SupabaseV2Client:
             self._handle_connection_error(e, f"get_data({table_name})")
             return []
 
-    def update_data(self, table_name: str, query_filter: dict, data: dict) -> Optional[list]:
-        """Update data with pause detection."""
+    def update_data(self, table_name: str, query_filter: any, data: dict) -> Optional[list]:
+        """Update data with pause detection. query_filter can be a dict or a single ID."""
         try:
             query = self.client.table(table_name).update(data)
-            for key, value in query_filter.items():
-                query = query.eq(key, value)
+            
+            if isinstance(query_filter, dict):
+                for key, value in query_filter.items():
+                    query = query.eq(key, value)
+            else:
+                # Assume it's a single primary key ID
+                query = query.eq("id", query_filter)
+                
             response = query.execute()
             self._is_paused = False
             return response.data

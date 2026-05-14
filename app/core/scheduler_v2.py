@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from typing import Optional
@@ -38,11 +40,24 @@ class SchedulerV2:
         
         try:
             jobstores = {
-                'default': SQLAlchemyJobStore(url=db_url)
+                'default': SQLAlchemyJobStore(
+                    url=db_url,
+                    engine_options={
+                        'pool_pre_ping': True,
+                        'pool_recycle': 1800
+                    }
+                )
+            }
+            
+            job_defaults = {
+                'misfire_grace_time': 60,
+                'coalesce': True,
+                'max_instances': 3
             }
             
             self._scheduler = AsyncIOScheduler(
                 jobstores=jobstores,
+                job_defaults=job_defaults,
                 timezone="Asia/Kolkata"
             )
         except Exception as e:

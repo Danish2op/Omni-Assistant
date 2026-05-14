@@ -6,6 +6,7 @@ from app.core.database_v2 import SupabaseV2Client
 from app.tools.resend_tool import ResendTool
 from app.core.scheduler_v2 import scheduler_instance
 from datetime import datetime, timedelta
+import pytz
 
 class V2EmailerAgent:
     """
@@ -151,7 +152,7 @@ class V2EmailerAgent:
             extraction_prompt = f"""Extract reminder details from: "{query}"
             Output ONLY valid JSON: {{"message": "string", "wait_minutes": int, "absolute_time": "ISO format string or null"}}
             If it's relative (e.g. 'in 5 minutes'), use wait_minutes. If absolute, use absolute_time.
-            Current time (IST): {datetime.now().isoformat()}"""
+            Current time (IST): {datetime.now(pytz.timezone('Asia/Kolkata')).isoformat()}"""
             
             try:
                 raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
@@ -184,7 +185,7 @@ class V2EmailerAgent:
             log_msg = ""
             
             if wait_min:
-                run_at = datetime.now() + timedelta(minutes=int(wait_min))
+                run_at = datetime.now(pytz.timezone('Asia/Kolkata')) + timedelta(minutes=int(wait_min))
                 log_msg = f"in {wait_min} minutes"
             elif abs_time_str:
                 try:
@@ -228,6 +229,19 @@ class V2EmailerAgent:
         # Pattern: remind me in 5 minutes to turn off light
         # Pattern: remind me in 5 mins to turn off light
         match = re.search(r'remind me in (\d+)\s*(min|minute|mins|minutes|hr|hour|hrs|hours)', text)
+        if not match:
+            # Alternate pattern: remind me to X in Y minutes
+            alt_match = re.search(r'remind me (?:to|about|that)\s+(.*?)\s+in\s+(\d+)\s*(min|minute|mins|minutes|hr|hour|hrs|hours)', text)
+            if alt_match:
+                amount = int(alt_match.group(2))
+                unit = alt_match.group(3)
+                wait_minutes = amount if 'min' in unit else amount * 60
+                return {
+                    "message": alt_match.group(1).strip(),
+                    "wait_minutes": wait_minutes,
+                    "absolute_time": None
+                }
+        
         if match:
             amount = int(match.group(1))
             unit = match.group(2)
@@ -237,7 +251,7 @@ class V2EmailerAgent:
                 wait_minutes = amount * 60
             
             # Extract message: everything after 'to ' or 'about '
-            msg_match = re.search(r'(?:to|about|that)\s+(.*)', text)
+            msg_match = re.search(r'(?:to|about|that)\s+(.*)', text[match.end():])
             message = msg_match.group(1).strip() if msg_match else query
             
             return {
@@ -272,7 +286,7 @@ class V2EmailerAgent:
                 if is_pm and hour < 12: hour += 12
                 elif is_am and hour == 12: hour = 0
                 
-                now = datetime.now()
+                now = datetime.now(pytz.timezone('Asia/Kolkata'))
                 target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                 if target < now: # If time has passed today, assume tomorrow
                     target += timedelta(days=1)
@@ -292,7 +306,7 @@ class V2EmailerAgent:
         from app.core.jobs_v2 import async_send_routine_email
         from app.core.scheduler_v2 import scheduler_instance
         
-        run_at = datetime.now() + timedelta(minutes=wait_minutes)
+        run_at = datetime.now(pytz.timezone('Asia/Kolkata')) + timedelta(minutes=wait_minutes)
         scheduler_instance.scheduler.add_job(
             async_send_routine_email,
             'date',
@@ -321,7 +335,7 @@ class V2EmailerAgent:
                 "day_of_week": "mon|tue|wed|thu|fri|sat|sun|null",
                 "recipient_name": "string or null"
             }}
-            Current time (IST): {datetime.now().isoformat()}"""
+            Current time (IST): {datetime.now(pytz.timezone('Asia/Kolkata')).isoformat()}"""
             
             try:
                 raw_extract = self.llm.generate(prompt=extraction_prompt, role=self.role, temperature=0.1)
@@ -532,11 +546,15 @@ class V2EmailerAgent:
     # ---- Routine Management ----
 
     def create_routine(self, contact_email: str, routine_type: str, frequency: str, schedule_time: str, content_params: dict = None) -> bool:
-        """Save a recurring routine to Supabase.
+        """Save or update a recurring routine in Supabase.
         
         Table schema: id, type, parameters (jsonb), frequency, recipient_email,
                        start_date, end_date, next_run_at, status, created_at (auto).
         """
+        # Check for existing active routine of the same type for this email
+        query_filter = {"recipient_email": contact_email, "type": routine_type, "status": "active"}
+        existing = self.db.get_data("routines", query_filter)
+        
         data = {
             "recipient_email": contact_email,
             "type": routine_type,
@@ -544,6 +562,14 @@ class V2EmailerAgent:
             "parameters": {**(content_params or {}), "schedule_time": schedule_time},
             "status": "active",
         }
-        result = self.db.save_data("routines", data)
+        
+        if existing and len(existing) > 0:
+            # Update the existing routine
+            routine_id = existing[0]["id"]
+            result = self.db.update_data("routines", routine_id, data)
+        else:
+            # Create new routine
+            result = self.db.save_data("routines", data)
+            
         return result is not None
 
