@@ -58,6 +58,9 @@ V2 introduces a dedicated **Communicator Agent** that moves beyond chat to take 
 
 
 ### ⚡ Reliability & Hardening
+- **Hardened Persistence Layer**: Reminders and routines are stored in a persistent `Supabase/SQLAlchemy` job store. They survive server restarts and redeployments on platforms like Render.
+- **Auto-Reconciliation**: On startup, the system automatically syncs active routines from the database into the live scheduler, ensuring no recurring task is ever lost.
+- **Smart Misfire Handling**: Configured with a 60-second misfire grace period to ensure background tasks execute even during high-load startup sequences.
 - **Auto-Fallback**: If the primary model is rate-limited (429) or unavailable (503), the system instantly cycles through the fallback chain.
 - **Cognitive Rules**:
     - **Credential Rule**: Strict separation between storing sensitive info (Archivist) and writing code (Coder).
@@ -104,8 +107,10 @@ Omni-Agent V2 is fully synchronized with **Indian Standard Time (IST)**.
 2. Configure `.env` with:
    - `OPENROUTER_API_KEY`
    - `TAVILY_API_KEY`
+   - `RESEND_API_KEY`
    - `SUPABASE_URL` & `SUPABASE_KEY`
-3. Run: `uvicorn main:app --reload`
+   - `SUPABASE_DB_URL` (PostgreSQL connection string for persistence)
+3. Run: `uvicorn main_v2:app --host 0.0.0.0 --port 8000`
 
 ### Frontend Setup
 1. `cd frontend && npm install`
